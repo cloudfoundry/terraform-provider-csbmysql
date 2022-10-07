@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	bindingUsernameKey       = "username"
-	bindingPasswordKey       = "password"
-	legacyBrokerBindingGroup = "binding_group"
+	bindingUsernameKey = "username"
+	bindingPasswordKey = "password"
+	bindingUserHostAll = "%"
 )
 
 var (
@@ -58,6 +58,7 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	cf := m.(connectionFactory)
 
 	db, err := cf.ConnectAsAdmin()
+
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -82,13 +83,13 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	}
 
 	if !userPresent {
-		_, err := tx.Exec(fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' ", username, cf.host, password))
+		_, err := tx.Exec(fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' ", username, bindingUserHostAll, password))
 		if err != nil {
 			return diag.FromErr(err)
 		}
 	}
 
-	_, err = tx.Exec(fmt.Sprintf("GRANT ALL ON `%s` TO '%s'@'%s'", cf.database, username, cf.host))
+	_, err = tx.Exec(fmt.Sprintf("GRANT ALL ON `%s` TO '%s'@'%s'", cf.database, username, bindingUserHostAll))
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -120,7 +121,7 @@ func resourceBindingUserRead(_ context.Context, d *schema.ResourceData, m any) d
 		_ = db.Close()
 	}(db)
 
-	userPresent, err := userExists(db, username, "%")
+	userPresent, err := userExists(db, username, bindingUserHostAll)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -164,7 +165,7 @@ func resourceBindingUserDelete(ctx context.Context, d *schema.ResourceData, m an
 	}(tx)
 
 	log.Println("[DEBUG] dropping binding user")
-	_, err = tx.Exec(fmt.Sprintf("DROP USER '%s'@'%s'", bindingUser, cf.host))
+	_, err = tx.Exec(fmt.Sprintf("DROP USER '%s'@'%s'", bindingUser, bindingUserHostAll))
 	if err != nil {
 		return diag.FromErr(err)
 	}

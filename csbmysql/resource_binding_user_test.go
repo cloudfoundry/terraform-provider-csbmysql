@@ -31,7 +31,7 @@ var _ = Describe("Provider", func() {
 		  username = "%s"
 		  password = "%s"
 		}
-		`, host, port, adminUser, adminPass, database, name, "binding-password"), //
+		`, dbHost, port, adminUser, adminPass, database, name, "binding-password"),
 
 			func(state *terraform.State) error {
 				By("CHECKING RESOURCE CREATE")
@@ -42,14 +42,16 @@ var _ = Describe("Provider", func() {
 				}(db)
 
 				Expect(err).NotTo(HaveOccurred())
-				rows, err := db.Query(fmt.Sprintf("SELECT user FROM mysql.user WHERE user = '%s' ", name))
+				getUserStatement, err := db.Prepare("SELECT user, host from mysql.user where User=?")
 				Expect(err).NotTo(HaveOccurred())
-				defer func(rows *sql.Rows) {
-					_ = rows.Close()
-				}(rows)
-
+				rows, err := getUserStatement.Query(name)
+				Expect(err).NotTo(HaveOccurred())
 				Expect(rows.Next()).To(BeTrue())
-
+				var rowUser, rowHost string
+				Expect(rows.Scan(&rowUser, &rowHost)).NotTo(HaveOccurred())
+				Expect(rowUser).To(Equal(name))
+				Expect(rowHost).To(Equal(bindingHost))
+				Expect(rows.Next()).To(BeFalse())
 				return nil
 			},
 			func(state *terraform.State) error {
@@ -60,10 +62,8 @@ var _ = Describe("Provider", func() {
 				By("checking that the binding user is deleted")
 				checkUserStatement, err := db.Prepare("SELECT user FROM mysql.user WHERE user = ?")
 				Expect(err).NotTo(HaveOccurred())
-				rows, err := checkUserStatement.Query(name, host)
+				rows, err := checkUserStatement.Query(name)
 				Expect(err).NotTo(HaveOccurred())
-				defer rows.Close()
-
 				Expect(rows.Next()).To(BeFalse())
 
 				return nil
@@ -79,6 +79,7 @@ func applyHCL(hcl string, checkOnCreate, checkOnDestroy resource.TestCheckFunc) 
 		ProviderFactories: map[string]func() (*schema.Provider, error){
 			"csbmysql": func() (*schema.Provider, error) { return csbmysql.Provider(), nil },
 		},
+		CheckDestroy: checkOnDestroy,
 		Steps: []resource.TestStep{{
 			ResourceName: "csbmysql_binding_user.example",
 			Config:       hcl,

@@ -13,16 +13,17 @@ import (
 )
 
 const (
-	name      = "binding-user"
-	adminUser = "root"
-	adminPass = "change-me"
-	host      = "127.0.0.1"
-	port      = 3306
-	database  = "mysql"
+	name        = "binding-user"
+	adminUser   = "root"
+	adminPass   = "change-me"
+	dbHost      = "127.0.0.1"
+	bindingHost = "%"
+	port        = 3306
+	database    = "mysql"
 )
 
 var (
-	adminUserURI = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql", adminUser, adminPass, host, port)
+	adminUserURI = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql", adminUser, adminPass, dbHost, port)
 )
 
 func TestTerraformProviderCSBMySQL(t *testing.T) {
@@ -47,7 +48,7 @@ var _ = BeforeSuite(func() {
 		"-e",
 		fmt.Sprintf("MYSQL_ROOT_PASSWORD=%s", adminPass),
 		"--health-cmd",
-		fmt.Sprintf("mysqladmin -h %s -P %d -u %s -p%s ping", host, port, adminUser, adminPass),
+		fmt.Sprintf("mysqladmin -h %s -P %d -u %s -p%s ping", dbHost, port, adminUser, adminPass),
 		"mysql:8",
 	)
 	Eventually(ensureMysqlIsUp).WithTimeout(2 * time.Minute).WithPolling(time.Second).Should(Succeed())
