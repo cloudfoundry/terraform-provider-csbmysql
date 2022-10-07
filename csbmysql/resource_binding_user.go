@@ -7,6 +7,7 @@ import (
 	"log"
 	"sync"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -52,7 +53,7 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	defer log.Println("[DEBUG] EXIT resourceBindingUserCreate()")
 
 	username := d.Get(bindingUsernameKey).(string)
-	_ = d.Get(bindingPasswordKey).(string)
+	password := d.Get(bindingPasswordKey).(string)
 
 	cf := m.(connectionFactory)
 
@@ -75,29 +76,19 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	log.Println("[DEBUG] connected")
 
 	log.Println("[DEBUG] create binding user")
-	userPresent, err := roleExists(tx, username)
+	userPresent, err := userExists(db, username, "%")
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	if userPresent {
-		_, err := tx.Prepare("GRANT ? TO ?")
+	if !userPresent {
+		_, err := tx.Exec(fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' ", username, cf.host, password))
 		if err != nil {
 			return diag.FromErr(err)
 		}
-
-		panic("maybe I'm not needed")
-
-	} else {
-
-		_, err := tx.Prepare("CREATE ROLE ? WITH LOGIN PASSWORD ? INHERIT IN ROLE ?")
-
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		panic("create me")
 	}
 
+	_, err = tx.Exec(fmt.Sprintf("GRANT ALL ON `%s` TO '%s'@'%s'", cf.database, username, cf.host))
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -128,19 +119,14 @@ func resourceBindingUserRead(_ context.Context, d *schema.ResourceData, m any) d
 	defer func(db *sql.DB) {
 		_ = db.Close()
 	}(db)
-	log.Println("[DEBUG] connected")
 
-	rows, err := db.Query(fmt.Sprintf("SELECT FROM pg_catalog.pg_roles WHERE rolname = '%s'", username))
+	userPresent, err := userExists(db, username, "%")
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
-	if !rows.Next() {
-		d.SetId("")
-		return nil
+	if userPresent {
+		d.SetId(username)
 	}
-
-	d.SetId(username)
 
 	return nil
 }
@@ -157,19 +143,8 @@ func resourceBindingUserDelete(ctx context.Context, d *schema.ResourceData, m an
 	defer deleteBindingMutex.Unlock()
 
 	bindingUser := d.Get(bindingUsernameKey).(string)
-	bindingUserPassword := d.Get(bindingPasswordKey).(string)
 
 	cf := m.(connectionFactory)
-
-	userDb, err := cf.ConnectAsUser(bindingUser, bindingUserPassword)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	_, err = userDb.ExecContext(ctx, fmt.Sprintf("GRANT %s TO %s", bindingUser, cf.username))
-	if err != nil {
-		return diag.FromErr(err)
-	}
 
 	db, err := cf.ConnectAsAdmin()
 	if err != nil {
@@ -189,19 +164,9 @@ func resourceBindingUserDelete(ctx context.Context, d *schema.ResourceData, m an
 	}(tx)
 
 	log.Println("[DEBUG] dropping binding user")
-	statements := [][]string{
-		{"DROP ROLE ?", bindingUser},
-	}
-	panic("is this all?")
-	for _, args := range statements {
-		statement, err := tx.Prepare(args[0])
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		_, err = statement.Exec(args[1:])
-		if err != nil {
-			return diag.FromErr(err)
-		}
+	_, err = tx.Exec(fmt.Sprintf("DROP USER '%s'@'%s'", bindingUser, cf.host))
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
 	err = tx.Commit()
@@ -212,18 +177,18 @@ func resourceBindingUserDelete(ctx context.Context, d *schema.ResourceData, m an
 	return nil
 }
 
-func roleExists(tx *sql.Tx, name string) (bool, error) {
+func userExists(db *sql.DB, name, host string) (bool, error) {
 	log.Println("[DEBUG] ENTRY roleExists()")
 	defer log.Println("[DEBUG] EXIT roleExists()")
 
-	createRoleStatement, err := tx.Prepare("SELECT FROM pg_catalog.pg_roles WHERE rolname = ?")
+	checkUserStatement, err := db.Prepare("SELECT 1 FROM mysql.user WHERE user = ? and HOST = ?")
 	if err != nil {
-		return false, fmt.Errorf("error finding preparing statement %q: %w", name, err)
+		return false, fmt.Errorf("error preparing statement %q: %w", name, err)
 	}
-	rows, err := createRoleStatement.Query(name)
+	rows, err := checkUserStatement.Query(name, host)
 
 	if err != nil {
-		return false, fmt.Errorf("error finding role %q: %w", name, err)
+		return false, fmt.Errorf("error finding user %q: %w", name, err)
 	}
 	defer func(rows *sql.Rows) {
 		_ = rows.Close()
