@@ -1,25 +1,28 @@
 package csbmysql_test
 
 import (
+	"database/sql"
 	"fmt"
-	"github.com/onsi/gomega/gbytes"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 )
 
 const (
-	name        = "binding-user"
-	adminUser   = "root"
-	adminPass   = "change-me"
-	dbHost      = "127.0.0.1"
-	bindingHost = "%"
-	port        = 3306
-	database    = "mysql"
+	bindingUserName = "binding-user"
+	bindingUserPass = "binding-'pass''word'"
+	adminUser       = "root"
+	adminPass       = "change-me"
+	dbHost          = "127.0.0.1"
+	bindingHost     = "%"
+	port            = 3306
+	database        = "nuclear-flux"
 )
 
 var (
@@ -32,13 +35,15 @@ func TestTerraformProviderCSBMySQL(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// Build Provider
-	mustRun("go",
-		"build",
-		"..",
-	)
+	By("Building provider")
+	mustRun("go", "build", "..")
 
-	// StartMysql
+	By("Starting MySQL server")
+	mysqlVersion, ok := os.LookupEnv("TEST_MYSQL_VERSION_IMAGE_TAG")
+	if !ok {
+		mysqlVersion = "8"
+	}
+
 	mustRun(
 		"docker",
 		"run",
@@ -49,20 +54,28 @@ var _ = BeforeSuite(func() {
 		fmt.Sprintf("MYSQL_ROOT_PASSWORD=%s", adminPass),
 		"--health-cmd",
 		fmt.Sprintf("mysqladmin -h %s -P %d -u %s -p%s ping", dbHost, port, adminUser, adminPass),
-		"mysql:8",
+		fmt.Sprintf("mysql:%s", mysqlVersion),
 	)
 	Eventually(ensureMysqlIsUp).WithTimeout(2 * time.Minute).WithPolling(time.Second).Should(Succeed())
+
+	By("Populating initial data")
+	db, err := sql.Open("mysql", adminUserURI)
+	Expect(err).NotTo(HaveOccurred())
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
+
+	executeSql(db, fmt.Sprintf("create database `%s`", database))
+	executeSql(db, fmt.Sprintf("create table `%s`"+`.previous_table (
+    pk int primary key not null auto_increment,
+    value varchar(255) not null
+)`, database))
+	executeSql(db, fmt.Sprintf("insert into `%s`.previous_table(pk, value) values (1, 'value')", database))
 })
 
 var _ = AfterSuite(func() {
-	mustRun("docker",
-		"kill",
-		"mysql",
-	)
-	mustRun("docker",
-		"rm",
-		"mysql",
-	)
+	mustRun("docker", "kill", "mysql")
+	mustRun("docker", "rm", "mysql")
 })
 
 func mustRun(command ...string) {
@@ -70,7 +83,7 @@ func mustRun(command ...string) {
 		command[0], command[1:]...,
 	), GinkgoWriter, GinkgoWriter)
 	Expect(err).NotTo(HaveOccurred())
-	Eventually(start).WithTimeout(30 * time.Second).WithPolling(time.Second).Should(gexec.Exit(0))
+	Eventually(start).WithTimeout(time.Minute).WithPolling(time.Second).Should(gexec.Exit(0))
 }
 
 func ensureMysqlIsUp(g Gomega) error {
@@ -79,4 +92,9 @@ func ensureMysqlIsUp(g Gomega) error {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(session).To(gbytes.Say("healthy"))
 	return nil
+}
+
+func executeSql(db *sql.DB, statement string) {
+	_, err := db.Exec(statement)
+	Expect(err).NotTo(HaveOccurred())
 }

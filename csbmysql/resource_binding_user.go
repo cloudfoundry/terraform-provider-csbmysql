@@ -83,13 +83,16 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	}
 
 	if !userPresent {
-		_, err := tx.Exec(fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' ", username, bindingUserHostAll, password))
+		_, err := tx.Exec(fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s", quotedIdentifier(username),
+			quotedIdentifier(bindingUserHostAll), quotedString(password)))
 		if err != nil {
 			return diag.FromErr(err)
 		}
 	}
 
-	_, err = tx.Exec(fmt.Sprintf("GRANT ALL ON `%s` TO '%s'@'%s'", cf.database, username, bindingUserHostAll))
+	grantStatement := fmt.Sprintf("GRANT ALL ON %s.* TO %s@%s", quotedIdentifier(cf.database),
+		quotedIdentifier(username), quotedIdentifier(bindingUserHostAll))
+	_, err = tx.Exec(grantStatement)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -177,7 +180,6 @@ func resourceBindingUserDelete(ctx context.Context, d *schema.ResourceData, m an
 
 	return nil
 }
-
 func userExists(db *sql.DB, name, host string) (bool, error) {
 	log.Println("[DEBUG] ENTRY roleExists()")
 	defer log.Println("[DEBUG] EXIT roleExists()")
