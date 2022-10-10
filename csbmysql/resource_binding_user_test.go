@@ -3,6 +3,7 @@ package csbmysql_test
 import (
 	"database/sql"
 	"fmt"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -160,7 +161,7 @@ func applyHCL(hcl string, checkOnCreate, checkOnDestroy resource.TestCheckFunc) 
 	resource.Test(GinkgoT(), resource.TestCase{
 		IsUnitTest: true,
 		ProviderFactories: map[string]func() (*schema.Provider, error){
-			"csbmysql": func() (*schema.Provider, error) { return csbmysql.Provider(), nil },
+			"csbmysql": func() (*schema.Provider, error) { return csbmysql.Provider(), nil }, //nolint:unparam
 		},
 		CheckDestroy: checkOnDestroy,
 		Steps: []resource.TestStep{{

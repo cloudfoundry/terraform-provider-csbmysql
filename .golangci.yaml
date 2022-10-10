@@ -1,0 +1,21 @@
+linters:
+  enable:
+  - errcheck
+  - goimports
+  - gosimple
+  - govet
+  - ineffassign
+  - importas
+  - revive
+  - staticcheck
+  - typecheck
+  - unconvert
+  - unparam
+  - unused
+  - predeclared
+linters-settings:
+  revive:
+    rules:
+    - name: import-shadowing
+      severity: warning
+      disabled: false
