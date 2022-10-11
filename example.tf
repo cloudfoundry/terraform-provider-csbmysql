@@ -16,7 +16,6 @@ provider "csbmysql" {
   username        = "admin-user"
   password        = "fill-me-in"
   database        = "mysql"
-  data_owner_role = "dataowner"
 }
 
 resource "csbmysql_binding_user" "binding_user" {

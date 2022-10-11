@@ -1,0 +1,35 @@
+name: test
+
+on:
+  workflow_call:
+    outputs:
+      pr_number:
+        description: "The PR number"
+        value: ${{ jobs.test.outputs.pr_number }}
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        mysql_version: ["8", "5.7"]
+    runs-on: ubuntu-latest
+    name: Go test
+    outputs:
+      pr_number: ${{ github.event.number }}
+    steps:
+    - uses: actions/setup-go@v3
+      with:
+        go-version: '1.19.2'
+    - uses: actions/checkout@v3
+    - run: make test
+      env:
+        TEST_MYSQL_VERSION_IMAGE_TAG: ${{ matrix.mysql_version }}
+  call-dependabot-pr-workflow:
+    needs: test
+    if: ${{ success() && github.actor == 'dependabot[bot]' }}
+    uses: cloudfoundry/cloud-service-broker/.github/workflows/dependabot-test.yml@main
+    with:
+      pr_number: ${{ github.event.number }}
