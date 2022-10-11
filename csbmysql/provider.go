@@ -14,6 +14,7 @@ const (
 	usernameKey = "username"
 	portKey     = "port"
 	hostKey     = "host"
+	tlsKey      = "tls"
 )
 
 func Provider() *schema.Provider {
@@ -41,6 +42,10 @@ func Provider() *schema.Provider {
 				Type:     schema.TypeString,
 				Required: true,
 			},
+			tlsKey: {
+				Type:     schema.TypeBool,
+				Optional: true,
+			},
 		},
 		ConfigureContextFunc: providerConfigure,
 		ResourcesMap: map[string]*schema.Resource{
@@ -58,6 +63,7 @@ func providerConfigure(_ context.Context, d *schema.ResourceData) (any, diag.Dia
 		username: d.Get(usernameKey).(string),
 		password: d.Get(passwordKey).(string),
 		database: d.Get(databaseKey).(string),
+		useTLS:   d.Get(tlsKey).(bool),
 	}
 
 	return factory, diags
