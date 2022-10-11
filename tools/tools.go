@@ -4,9 +4,7 @@
 package tools
 
 import (
-	_ "github.com/onsi/ginkgo/v2/ginkgo/generators"
-	_ "github.com/onsi/ginkgo/v2/ginkgo/internal"
-	_ "github.com/onsi/ginkgo/v2/ginkgo/labels"
+	_ "github.com/onsi/ginkgo/v2/ginkgo"
 )
 
 // This file imports packages that are used when running go generate, or used
