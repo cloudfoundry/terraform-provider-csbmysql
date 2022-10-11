@@ -40,7 +40,7 @@ func resourceBindingUser() *schema.Resource {
 		ReadContext:   resourceBindingUserRead,
 		UpdateContext: resourceBindingUserUpdate,
 		DeleteContext: resourceBindingUserDelete,
-		Description:   "TODO",
+		Description:   "A MySQL Server binding for the CSB brokerpak",
 		UseJSONNumber: true,
 	}
 }
