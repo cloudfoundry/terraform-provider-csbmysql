@@ -11,11 +11,12 @@ terraform {
 }
 
 provider "csbmysql" {
-  host            = "localhost"
-  port            = 3306
-  username        = "admin-user"
-  password        = "fill-me-in"
-  database        = "mysql"
+  host      = "localhost"
+  port      = 3306
+  username  = "admin-user"
+  password  = "fill-me-in"
+  database  = "mysql"
+  verifyTLS = true
 }
 
 resource "csbmysql_binding_user" "binding_user" {

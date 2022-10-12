@@ -14,7 +14,7 @@ const (
 	usernameKey = "username"
 	portKey     = "port"
 	hostKey     = "host"
-	tlsKey      = "tls"
+	tlsKey      = "verify_tls"
 )
 
 func Provider() *schema.Provider {
@@ -58,12 +58,12 @@ func providerConfigure(_ context.Context, d *schema.ResourceData) (any, diag.Dia
 	var diags diag.Diagnostics
 
 	factory := connectionFactory{
-		host:     d.Get(hostKey).(string),
-		port:     d.Get(portKey).(int),
-		username: d.Get(usernameKey).(string),
-		password: d.Get(passwordKey).(string),
-		database: d.Get(databaseKey).(string),
-		useTLS:   d.Get(tlsKey).(bool),
+		host:      d.Get(hostKey).(string),
+		port:      d.Get(portKey).(int),
+		username:  d.Get(usernameKey).(string),
+		password:  d.Get(passwordKey).(string),
+		database:  d.Get(databaseKey).(string),
+		verifyTLS: d.Get(tlsKey).(bool),
 	}
 
 	return factory, diags

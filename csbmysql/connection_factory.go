@@ -7,12 +7,12 @@ import (
 )
 
 type connectionFactory struct {
-	host     string
-	port     int
-	username string
-	password string
-	database string
-	useTLS   bool
+	host      string
+	port      int
+	username  string
+	password  string
+	database  string
+	verifyTLS bool
 }
 
 func (c connectionFactory) ConnectAsAdmin() (*sql.DB, error) {
@@ -28,11 +28,15 @@ func (c connectionFactory) connect(uri string) (*sql.DB, error) {
 	return db, nil
 }
 func (c connectionFactory) uriWithCreds(username, password string) string {
-	uri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", username, password, c.host, c.port, c.database)
-	if c.useTLS {
-		uri += "?tls=true"
-	}
+	uri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?tls=%s", username, password, c.host, c.port, c.database, c.tlsMode())
 	return uri
+}
+
+func (c connectionFactory) tlsMode() string {
+	if c.verifyTLS {
+		return "true"
+	}
+	return "skip-verify"
 }
 
 func (c connectionFactory) uri() string {
