@@ -15,14 +15,11 @@ import (
 )
 
 const (
-	bindingUserName = "binding-user"
-	bindingUserPass = "binding-'pass''word'"
-	adminUser       = "root"
-	adminPass       = "change-me"
-	dbHost          = "127.0.0.1"
-	bindingHost     = "%"
-	port            = 3306
-	database        = "nuclear-flux"
+	adminUser = "root"
+	adminPass = "change-me"
+	dbHost    = "127.0.0.1"
+	port      = 3306
+	database  = "nuclear-flux"
 )
 
 var (

@@ -14,9 +14,12 @@ import (
 	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 )
 
-var _ = Describe("Provider", func() {
-	It("Can be used for initializing a tf project", func() {
+const (
+	bindingHost = "%"
+)
 
+var _ = Describe("Provider", func() {
+	DescribeTable("User can be created", func(username, password string, requireTLS bool) {
 		applyHCL(fmt.Sprintf(`
 		provider "csbmysql" {
 		  host            = "%s"
@@ -24,13 +27,13 @@ var _ = Describe("Provider", func() {
 		  username        = "%s"
 		  password        = "%s"
 		  database        = "%s"
-
+          require_ssl     = %t
 		}
 		resource "csbmysql_binding_user" "binding_user" {
 		  username = "%s"
 		  password = "%s"
 		}
-		`, dbHost, port, adminUser, adminPass, database, bindingUserName, bindingUserPass),
+		`, dbHost, port, adminUser, adminPass, database, requireTLS, username, password),
 
 			func(state *terraform.State) error {
 				By("CHECKING RESOURCE CREATE")
@@ -44,20 +47,20 @@ var _ = Describe("Provider", func() {
 
 				getUserStatement, err := db.Prepare("SELECT user, host from mysql.user where User=?")
 				Expect(err).NotTo(HaveOccurred())
-				rows, err := getUserStatement.Query(bindingUserName)
+				rows, err := getUserStatement.Query(username)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(rows.Next()).To(BeTrue())
 
 				var rowUser, rowHost string
 				Expect(rows.Scan(&rowUser, &rowHost)).NotTo(HaveOccurred())
-				Expect(rowUser).To(Equal(bindingUserName))
+				Expect(rowUser).To(Equal(username))
 				Expect(rowHost).To(Equal(bindingHost))
 				Expect(rows.Next()).To(BeFalse())
 
 				By("Connecting as the binding user")
 
-				userURI := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", bindingUserName, bindingUserPass, dbHost, port, database)
+				userURI := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", username, password, dbHost, port, database)
 				dbUser, err := sql.Open("mysql", userURI)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -131,7 +134,7 @@ var _ = Describe("Provider", func() {
 					_ = db.Close()
 				}(db)
 
-				rows, err := db.Query("SELECT user FROM mysql.user WHERE user = ?", bindingUserName)
+				rows, err := db.Query("SELECT user FROM mysql.user WHERE user = ?", username)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(rows.Next()).To(BeFalse())
 
@@ -152,7 +155,8 @@ var _ = Describe("Provider", func() {
 
 				return nil
 			})
-	})
+	},
+		Entry("without TLS", "some-user", "some-password", false))
 
 })
 

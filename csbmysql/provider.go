@@ -14,7 +14,7 @@ const (
 	usernameKey = "username"
 	portKey     = "port"
 	hostKey     = "host"
-	tlsKey      = "verify_tls"
+	tlsKey      = "require_ssl"
 )
 
 func Provider() *schema.Provider {
