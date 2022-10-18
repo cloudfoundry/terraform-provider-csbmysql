@@ -1,11 +1,13 @@
 package csbmysql_test
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
+	"text/template"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -94,4 +96,63 @@ func ensureMysqlIsUp(g Gomega) error {
 func executeSql(db *sql.DB, statement string) {
 	_, err := db.Exec(statement)
 	Expect(err).NotTo(HaveOccurred())
+}
+
+func parse(m interface{}, resourceTmpl string) (string, error) {
+	var definitionBytes bytes.Buffer
+
+	t := template.Must(template.New("resource").Parse(resourceTmpl))
+	if err := t.Execute(&definitionBytes, m); err != nil {
+		return "", err
+	}
+
+	return definitionBytes.String(), nil
+}
+
+type acceptanceConfig struct {
+	ProviderName,
+	DBHost,
+	AdminUser,
+	AdminPass,
+	Database,
+	Username,
+	Password string
+	Port       int
+	RequireTLS bool
+}
+
+type setAcceptanceConfigFunc func(*acceptanceConfig)
+
+func getAcceptanceConfig(optFns ...setAcceptanceConfigFunc) *acceptanceConfig {
+	c := acceptanceConfig{
+		ProviderName: providerName,
+		DBHost:       dbHost,
+		AdminUser:    adminUser,
+		AdminPass:    adminPass,
+		Database:     database,
+		Port:         port,
+	}
+
+	for _, fn := range optFns {
+		fn(&c)
+	}
+	return &c
+}
+
+func acceptanceTestConfigWithUsername(username string) setAcceptanceConfigFunc {
+	return func(config *acceptanceConfig) {
+		config.Username = username
+	}
+}
+
+func acceptanceTestConfigWithPassword(password string) setAcceptanceConfigFunc {
+	return func(config *acceptanceConfig) {
+		config.Password = password
+	}
+}
+
+func acceptanceTestConfigWithTLS(requireTLS bool) setAcceptanceConfigFunc {
+	return func(config *acceptanceConfig) {
+		config.RequireTLS = requireTLS
+	}
 }
