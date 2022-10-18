@@ -9,52 +9,57 @@ import (
 )
 
 const (
-	databaseKey = "database"
-	passwordKey = "password"
-	usernameKey = "username"
-	portKey     = "port"
-	hostKey     = "host"
-	tlsKey      = "require_ssl"
+	databaseKey  = "database"
+	passwordKey  = "password"
+	usernameKey  = "username"
+	portKey      = "port"
+	hostKey      = "host"
+	tlsKey       = "require_ssl"
+	ResourceName = "csbmysql_binding_user"
 )
 
 func Provider() *schema.Provider {
 	return &schema.Provider{
-		Schema: map[string]*schema.Schema{
-			hostKey: {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			portKey: {
-				Type:         schema.TypeInt,
-				Required:     true,
-				ValidateFunc: validation.IsPortNumber,
-			},
-			usernameKey: {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			passwordKey: {
-				Type:      schema.TypeString,
-				Required:  true,
-				Sensitive: true,
-			},
-			databaseKey: {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			tlsKey: {
-				Type:     schema.TypeBool,
-				Optional: true,
-			},
-		},
-		ConfigureContextFunc: providerConfigure,
+		Schema:               ProviderSchema(),
+		ConfigureContextFunc: ProviderConfigureContext,
 		ResourcesMap: map[string]*schema.Resource{
-			"csbmysql_binding_user": resourceBindingUser(),
+			ResourceName: ResourceBindingUser(),
 		},
 	}
 }
 
-func providerConfigure(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
+func ProviderSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		hostKey: {
+			Type:     schema.TypeString,
+			Required: true,
+		},
+		portKey: {
+			Type:         schema.TypeInt,
+			Required:     true,
+			ValidateFunc: validation.IsPortNumber,
+		},
+		usernameKey: {
+			Type:     schema.TypeString,
+			Required: true,
+		},
+		passwordKey: {
+			Type:      schema.TypeString,
+			Required:  true,
+			Sensitive: true,
+		},
+		databaseKey: {
+			Type:     schema.TypeString,
+			Required: true,
+		},
+		tlsKey: {
+			Type:     schema.TypeBool,
+			Optional: true,
+		},
+	}
+}
+
+func ProviderConfigureContext(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	factory := connectionFactory{
