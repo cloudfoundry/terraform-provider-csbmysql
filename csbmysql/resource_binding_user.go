@@ -23,19 +23,9 @@ var (
 	deleteBindingMutex sync.Mutex
 )
 
-func resourceBindingUser() *schema.Resource {
+func ResourceBindingUser() *schema.Resource {
 	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			bindingUsernameKey: {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			bindingPasswordKey: {
-				Type:      schema.TypeString,
-				Required:  true,
-				Sensitive: true,
-			},
-		},
+		Schema:        resourceBindingUserSchema,
 		CreateContext: resourceBindingUserCreate,
 		ReadContext:   resourceBindingUserRead,
 		UpdateContext: resourceBindingUserUpdate,
@@ -43,6 +33,18 @@ func resourceBindingUser() *schema.Resource {
 		Description:   "A MySQL Server binding for the CSB brokerpak",
 		UseJSONNumber: true,
 	}
+}
+
+var resourceBindingUserSchema = map[string]*schema.Schema{
+	bindingUsernameKey: {
+		Type:     schema.TypeString,
+		Required: true,
+	},
+	bindingPasswordKey: {
+		Type:      schema.TypeString,
+		Required:  true,
+		Sensitive: true,
+	},
 }
 
 func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
