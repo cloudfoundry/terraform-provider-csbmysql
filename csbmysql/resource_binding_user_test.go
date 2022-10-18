@@ -2,43 +2,53 @@ package csbmysql_test
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
+	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 )
 
 const (
-	bindingHost = "%"
+	bindingHost  = "%"
+	providerName = "csbmysql"
 )
 
-var hcl = `
-provider "csbmysql" {
-  host            = "%s"
-  port            = %d
-  username        = "%s"
-  password        = "%s"
-  database        = "%s"
-  require_ssl     = %t
+const csbMySQLResource = `
+provider "{{.ProviderName}}" {
+  host            = "{{.DBHost}}"
+  port            = {{.Port}}
+  username        = "{{.AdminUser}}"
+  password        = "{{.AdminPass}}"
+  database        = "{{.Database}}"
+  require_ssl     = {{.RequireTLS}}
 }
 
 resource "csbmysql_binding_user" "binding_user" {
-  username = "%s"
-  password = "%s"
+  username = "{{.Username}}"
+  password = "{{.Password}}"
 }
 `
 
 var _ = Describe("Provider", func() {
 
 	DescribeTable("User can be created", func(username, password string, requireTLS bool) {
+		hcl, err := parse(
+			getAcceptanceConfig(
+				acceptanceTestConfigWithUsername(username),
+				acceptanceTestConfigWithPassword(password),
+				acceptanceTestConfigWithTLS(requireTLS),
+			),
+			csbMySQLResource,
+		)
+		Expect(err).NotTo(HaveOccurred())
 		applyHCL(
-			fmt.Sprintf(hcl, dbHost, port, adminUser, adminPass, database, requireTLS, username, password),
+			hcl,
 			checkUserCanBeCreated(username, password),
 			checkUserCanBeDestroy(username),
 		)
@@ -174,17 +184,41 @@ func checkUserCanBeDestroy(username string) func(state *terraform.State) error {
 }
 
 func applyHCL(hcl string, checkOnCreate, checkOnDestroy resource.TestCheckFunc) {
-
+	provider := initTestProvider()
 	resource.Test(GinkgoT(), resource.TestCase{
-		IsUnitTest: true,
-		ProviderFactories: map[string]func() (*schema.Provider, error){
-			"csbmysql": func() (*schema.Provider, error) { return csbmysql.Provider(), nil }, //nolint:unparam
-		},
-		CheckDestroy: checkOnDestroy,
+		IsUnitTest:        true,
+		ProviderFactories: getTestProviderFactories(provider),
+		CheckDestroy:      checkOnDestroy,
 		Steps: []resource.TestStep{{
 			ResourceName: "csbmysql_binding_user.example",
 			Config:       hcl,
 			Check:        checkOnCreate,
 		}},
 	})
+}
+
+func getTestProviderFactories(provider *schema.Provider) map[string]func() (*schema.Provider, error) {
+	return map[string]func() (*schema.Provider, error){
+		providerName: func() (*schema.Provider, error) {
+			if provider == nil {
+				return provider, errors.New("provider cannot be nil")
+			}
+
+			return provider, nil
+		},
+	}
+}
+
+func initTestProvider() *schema.Provider {
+	testAccProvider := &schema.Provider{
+		Schema: csbmysql.ProviderSchema(),
+		ResourcesMap: map[string]*schema.Resource{
+			csbmysql.ResourceName: csbmysql.ResourceBindingUser(),
+		},
+		ConfigureContextFunc: csbmysql.ProviderConfigureContext,
+	}
+	err := testAccProvider.InternalValidate()
+	Expect(err).NotTo(HaveOccurred())
+
+	return testAccProvider
 }
