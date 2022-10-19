@@ -10,6 +10,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -109,8 +110,9 @@ func parse(m interface{}, resourceTmpl string) (string, error) {
 	return definitionBytes.String(), nil
 }
 
-type acceptanceConfig struct {
+type definition struct {
 	ProviderName,
+	ResourceName,
 	DBHost,
 	AdminUser,
 	AdminPass,
@@ -118,14 +120,15 @@ type acceptanceConfig struct {
 	Username,
 	Password string
 	Port       int
-	RequireTLS bool
+	RequireSSL bool
 }
 
-type setAcceptanceConfigFunc func(*acceptanceConfig)
+type setDefinitionFunc func(*definition)
 
-func getAcceptanceConfig(optFns ...setAcceptanceConfigFunc) *acceptanceConfig {
-	c := acceptanceConfig{
+func testGetResourceDefinition(optFns ...setDefinitionFunc) string {
+	c := definition{
 		ProviderName: providerName,
+		ResourceName: csbmysql.ResourceNameKey,
 		DBHost:       dbHost,
 		AdminUser:    adminUser,
 		AdminPass:    adminPass,
@@ -136,23 +139,26 @@ func getAcceptanceConfig(optFns ...setAcceptanceConfigFunc) *acceptanceConfig {
 	for _, fn := range optFns {
 		fn(&c)
 	}
-	return &c
+
+	hcl, err := parse(&c, csbMySQLResource)
+	Expect(err).NotTo(HaveOccurred())
+	return hcl
 }
 
-func acceptanceTestConfigWithUsername(username string) setAcceptanceConfigFunc {
-	return func(config *acceptanceConfig) {
+func resourceDefinitionWithUsername(username string) setDefinitionFunc {
+	return func(config *definition) {
 		config.Username = username
 	}
 }
 
-func acceptanceTestConfigWithPassword(password string) setAcceptanceConfigFunc {
-	return func(config *acceptanceConfig) {
+func resourceDefinitionWithPassword(password string) setDefinitionFunc {
+	return func(config *definition) {
 		config.Password = password
 	}
 }
 
-func acceptanceTestConfigWithTLS(requireTLS bool) setAcceptanceConfigFunc {
-	return func(config *acceptanceConfig) {
-		config.RequireTLS = requireTLS
+func resourceDefinitionWithSSL(requireSSL bool) setDefinitionFunc {
+	return func(config *definition) {
+		config.RequireSSL = requireSSL
 	}
 }

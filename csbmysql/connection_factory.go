@@ -4,15 +4,18 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type connectionFactory struct {
-	host      string
-	port      int
-	username  string
-	password  string
-	database  string
-	verifyTLS bool
+	host       string
+	port       int
+	username   string
+	password   string
+	database   string
+	requireSSL bool
 }
 
 func (c connectionFactory) ConnectAsAdmin() (*sql.DB, error) {
@@ -25,6 +28,10 @@ func (c connectionFactory) connect(uri string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to connect to MySQL %q: %w", c.uriRedacted(), err)
 	}
 
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(5)
+
 	return db, nil
 }
 func (c connectionFactory) uriWithCreds(username, password string) string {
@@ -33,10 +40,10 @@ func (c connectionFactory) uriWithCreds(username, password string) string {
 }
 
 func (c connectionFactory) tlsMode() string {
-	if c.verifyTLS {
+	if c.requireSSL {
 		return "true"
 	}
-	return "skip-verify"
+	return "preferred"
 }
 
 func (c connectionFactory) uri() string {

@@ -7,7 +7,6 @@ import (
 	"log"
 	"sync"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -86,11 +85,16 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 
 	if !userPresent {
 		tlsRequired := "NONE"
-		if cf.verifyTLS {
+		if cf.requireSSL {
 			tlsRequired = "SSL"
 		}
-		_, err := tx.Exec(fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s REQUIRE %s", quotedIdentifier(username),
-			quotedIdentifier(bindingUserHostAll), quotedString(password), tlsRequired))
+		_, err := tx.Exec(
+			fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s REQUIRE %s",
+				quotedIdentifier(username),
+				quotedIdentifier(bindingUserHostAll),
+				quotedString(password),
+				tlsRequired,
+			))
 		if err != nil {
 			return diag.FromErr(err)
 		}

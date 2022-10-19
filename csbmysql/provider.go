@@ -8,22 +8,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-const (
-	databaseKey  = "database"
-	passwordKey  = "password"
-	usernameKey  = "username"
-	portKey      = "port"
-	hostKey      = "host"
-	tlsKey       = "require_ssl"
-	ResourceName = "csbmysql_binding_user"
-)
-
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema:               ProviderSchema(),
 		ConfigureContextFunc: ProviderConfigureContext,
 		ResourcesMap: map[string]*schema.Resource{
-			ResourceName: ResourceBindingUser(),
+			ResourceNameKey: ResourceBindingUser(),
 		},
 	}
 }
@@ -52,7 +42,7 @@ func ProviderSchema() map[string]*schema.Schema {
 			Type:     schema.TypeString,
 			Required: true,
 		},
-		tlsKey: {
+		requireSSLKey: {
 			Type:     schema.TypeBool,
 			Optional: true,
 		},
@@ -63,12 +53,12 @@ func ProviderConfigureContext(_ context.Context, d *schema.ResourceData) (any, d
 	var diags diag.Diagnostics
 
 	factory := connectionFactory{
-		host:      d.Get(hostKey).(string),
-		port:      d.Get(portKey).(int),
-		username:  d.Get(usernameKey).(string),
-		password:  d.Get(passwordKey).(string),
-		database:  d.Get(databaseKey).(string),
-		verifyTLS: d.Get(tlsKey).(bool),
+		host:       d.Get(hostKey).(string),
+		port:       d.Get(portKey).(int),
+		username:   d.Get(usernameKey).(string),
+		password:   d.Get(passwordKey).(string),
+		database:   d.Get(databaseKey).(string),
+		requireSSL: d.Get(requireSSLKey).(bool),
 	}
 
 	return factory, diags
