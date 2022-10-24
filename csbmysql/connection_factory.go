@@ -43,7 +43,7 @@ func (c connectionFactory) tlsMode() string {
 	if c.requireSSL {
 		return "true"
 	}
-	return "preferred"
+	return "skip-verify"
 }
 
 func (c connectionFactory) uri() string {
