@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"text/template"
 	"time"
@@ -26,7 +29,7 @@ const (
 )
 
 var (
-	adminUserURI = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql", adminUser, adminPass, dbHost, port)
+	adminUserURI = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql?tls=skip-verify", adminUser, adminPass, dbHost, port)
 )
 
 func TestTerraformProviderCSBMySQL(t *testing.T) {
@@ -44,6 +47,8 @@ var _ = BeforeSuite(func() {
 		mysqlVersion = "8"
 	}
 
+	createFixtureVolume()
+
 	mustRun(
 		"docker",
 		"run",
@@ -52,6 +57,7 @@ var _ = BeforeSuite(func() {
 		"--publish=3306:3306",
 		"-e",
 		fmt.Sprintf("MYSQL_ROOT_PASSWORD=%s", adminPass),
+		"--mount source=mysql_config,destination=/etc/mysql/conf.d",
 		"--health-cmd",
 		fmt.Sprintf("mysqladmin -h %s -P %d -u %s -p%s ping", dbHost, port, adminUser, adminPass),
 		fmt.Sprintf("mysql:%s", mysqlVersion),
@@ -161,4 +167,27 @@ func resourceDefinitionWithSSL(requireSSL bool) setDefinitionFunc {
 	return func(config *definition) {
 		config.RequireSSL = requireSSL
 	}
+}
+
+func createFixtureVolume() {
+	mustRun("docker", "volume", "create", "mysql_config")
+	for _, folder := range []string{"certs", "keys"} {
+		dockerVolumeRun(fmt.Sprintf(`rm -rf "/mnt/%s"`, folder))
+		dockerVolumeRun(fmt.Sprintf(`cp -r "/fixture/ssl_mysql/%s" /mnt`, folder))
+	}
+	dockerVolumeRun(`rm "/mnt/my.cnf"`)
+	dockerVolumeRun(`cp "/fixture/my.cnf" "/mnt"`)
+	dockerVolumeRun(`chown mysql "/mnt/keys/server.key"`)
+	dockerVolumeRun(`chmod 0600 "/mnt/keys/server.key"`)
+}
+
+func dockerVolumeRun(cmd string) {
+	fixturePath := path.Join(getCurrentDirectory(), "testfixtures", "ssl_mysql")
+	volumeMount := fmt.Sprintf("%s:/fixture", fixturePath)
+	mustRun("docker", "run", "-v", volumeMount, "--mount", "source=mysql_config,destination=/mnt", "mysql", cmd)
+}
+
+func getCurrentDirectory() string {
+	_, file, _, _ := runtime.Caller(1)
+	return filepath.Dir(file)
 }

@@ -8,6 +8,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
+// 1. SSL: true
+// 1.1 Improve testing
+// 1.2 Deploy
+// 2. Modify brokerpak
+// 2.1 Remove use_ssl
+
+// GCP
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema:               ProviderSchema(),
@@ -42,10 +49,6 @@ func ProviderSchema() map[string]*schema.Schema {
 			Type:     schema.TypeString,
 			Required: true,
 		},
-		requireSSLKey: {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
 	}
 }
 
@@ -53,12 +56,11 @@ func ProviderConfigureContext(_ context.Context, d *schema.ResourceData) (any, d
 	var diags diag.Diagnostics
 
 	factory := connectionFactory{
-		host:       d.Get(hostKey).(string),
-		port:       d.Get(portKey).(int),
-		username:   d.Get(usernameKey).(string),
-		password:   d.Get(passwordKey).(string),
-		database:   d.Get(databaseKey).(string),
-		requireSSL: d.Get(requireSSLKey).(bool),
+		host:     d.Get(hostKey).(string),
+		port:     d.Get(portKey).(int),
+		username: d.Get(usernameKey).(string),
+		password: d.Get(passwordKey).(string),
+		database: d.Get(databaseKey).(string),
 	}
 
 	return factory, diags

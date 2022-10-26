@@ -6,6 +6,5 @@ const (
 	usernameKey     = "username"
 	portKey         = "port"
 	hostKey         = "host"
-	requireSSLKey   = "require_ssl"
 	ResourceNameKey = "csbmysql_binding_user"
 )

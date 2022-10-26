@@ -45,7 +45,7 @@ var _ = Describe("Provider", func() {
 		resource.Test(GinkgoT(), resource.TestCase{
 			IsUnitTest:        true,
 			ProviderFactories: getTestProviderFactories(provider),
-			CheckDestroy:      checkUserCanBeDestroy(username),
+			CheckDestroy:      checkUserIsDestroyed(username),
 			Steps: []resource.TestStep{{
 				Config: testGetResourceDefinition(
 					resourceDefinitionWithUsername(username),
@@ -55,7 +55,7 @@ var _ = Describe("Provider", func() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(tfStateResourceName, "username", username),
 					resource.TestCheckResourceAttr(tfStateResourceName, "password", password),
-					checkUserCanBeCreated(username, password),
+					checkUserIsCreated(username, password),
 				),
 			}},
 		})
@@ -64,7 +64,7 @@ var _ = Describe("Provider", func() {
 
 })
 
-func checkUserCanBeCreated(username, password string) func(state *terraform.State) error {
+func checkUserIsCreated(username, password string) func(state *terraform.State) error {
 	return func(state *terraform.State) error {
 		By("CHECKING RESOURCE CREATE")
 		By("Confirming that the binding user exists")
@@ -77,6 +77,7 @@ func checkUserCanBeCreated(username, password string) func(state *terraform.Stat
 
 		getUserStatement, err := db.Prepare("SELECT user, host from mysql.user where User=?")
 		Expect(err).NotTo(HaveOccurred())
+		defer func(getUserStatement *sql.Stmt) { _ = getUserStatement.Close() }(getUserStatement)
 		rows, err := getUserStatement.Query(username)
 
 		Expect(err).NotTo(HaveOccurred())
@@ -90,7 +91,7 @@ func checkUserCanBeCreated(username, password string) func(state *terraform.Stat
 
 		By("Connecting as the binding user")
 
-		userURI := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", username, password, dbHost, port, database)
+		userURI := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?tls=true", username, password, dbHost, port, database)
 		dbUser, err := sql.Open("mysql", userURI)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -150,7 +151,7 @@ func checkUserCanBeCreated(username, password string) func(state *terraform.Stat
 	}
 }
 
-func checkUserCanBeDestroy(username string) func(state *terraform.State) error {
+func checkUserIsDestroyed(username string) func(state *terraform.State) error {
 	return func(state *terraform.State) error {
 		var (
 			taskId   int
