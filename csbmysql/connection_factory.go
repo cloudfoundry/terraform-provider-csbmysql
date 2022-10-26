@@ -5,9 +5,10 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"fmt"
-	"github.com/go-sql-driver/mysql"
 	"strings"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -25,8 +26,7 @@ type connectionFactory struct {
 
 func (c connectionFactory) ConnectAsAdmin() (*sql.DB, error) {
 	if len(c.caCertificate) > 0 {
-		err := c.registerCustomCA()
-		if err != nil {
+		if err := c.registerCustomCA(); err != nil {
 			return nil, err
 		}
 	}
