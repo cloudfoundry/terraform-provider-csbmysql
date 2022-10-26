@@ -23,7 +23,7 @@ import (
 const (
 	adminUser = "root"
 	adminPass = "change-me"
-	dbHost    = "127.0.0.1"
+	dbHost    = "localhost"
 	port      = 3306
 	database  = "nuclear-flux"
 )
@@ -108,7 +108,13 @@ func executeSql(db *sql.DB, statement string) {
 func parse(m interface{}, resourceTmpl string) (string, error) {
 	var definitionBytes bytes.Buffer
 
-	t := template.Must(template.New("resource").Parse(resourceTmpl))
+	t := template.New("resource").Funcs(
+		template.FuncMap{
+			"btoa": func(b []byte) string {
+				return string(b)
+			},
+		})
+	t = template.Must(t.Parse(resourceTmpl))
 	if err := t.Execute(&definitionBytes, m); err != nil {
 		return "", err
 	}
@@ -180,7 +186,6 @@ func createFixtureVolume() {
 }
 
 func dockerVolumeRun(cmd ...string) {
-	fmt.Fprintln(GinkgoWriter, "Running docker command", cmd)
 	fixturePath := path.Join(getCurrentDirectory(), "testfixtures")
 	volumeMount := fmt.Sprintf("%s:/fixture", fixturePath)
 	dockerVolumeCommand := []string{"docker", "run", "-v", volumeMount, "--mount", "source=mysql_config,destination=/mnt", "mysql"}
