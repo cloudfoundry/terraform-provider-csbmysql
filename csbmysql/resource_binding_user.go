@@ -84,16 +84,11 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	}
 
 	if !userPresent {
-		tlsRequired := "NONE"
-		if cf.requireSSL {
-			tlsRequired = "SSL"
-		}
 		_, err := tx.Exec(
-			fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s REQUIRE %s",
+			fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s REQUIRE SSL",
 				quotedIdentifier(username),
 				quotedIdentifier(bindingUserHostAll),
 				quotedString(password),
-				tlsRequired,
 			))
 		if err != nil {
 			return diag.FromErr(err)

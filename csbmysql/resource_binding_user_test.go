@@ -24,7 +24,7 @@ provider "{{.ProviderName}}" {
   username        = "{{.AdminUser}}"
   password        = "{{.AdminPass}}"
   database        = "{{.Database}}"
-  require_ssl     = {{.RequireSSL}}
+  sslrootcert     = "{{.SSLRootCert}}"
 }
 
 resource "{{.ResourceName}}" "binding_user" {
@@ -50,7 +50,6 @@ var _ = Describe("Provider", func() {
 				Config: testGetResourceDefinition(
 					resourceDefinitionWithUsername(username),
 					resourceDefinitionWithPassword(password),
-					resourceDefinitionWithSSL(requireSSL),
 				),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(tfStateResourceName, "username", username),
@@ -91,7 +90,7 @@ func checkUserIsCreated(username, password string) func(state *terraform.State) 
 
 		By("Connecting as the binding user")
 
-		userURI := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?tls=true", username, password, dbHost, port, database)
+		userURI := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?tls=skip-verify", username, password, dbHost, port, database)
 		dbUser, err := sql.Open("mysql", userURI)
 		Expect(err).NotTo(HaveOccurred())
 

@@ -49,18 +49,24 @@ func ProviderSchema() map[string]*schema.Schema {
 			Type:     schema.TypeString,
 			Required: true,
 		},
+		sslRootCertKey: {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
 	}
 }
 
 func ProviderConfigureContext(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
+	sslRootCert := d.Get(sslRootCertKey).(string)
 	factory := connectionFactory{
-		host:     d.Get(hostKey).(string),
-		port:     d.Get(portKey).(int),
-		username: d.Get(usernameKey).(string),
-		password: d.Get(passwordKey).(string),
-		database: d.Get(databaseKey).(string),
+		host:          d.Get(hostKey).(string),
+		port:          d.Get(portKey).(int),
+		username:      d.Get(usernameKey).(string),
+		password:      d.Get(passwordKey).(string),
+		database:      d.Get(databaseKey).(string),
+		caCertificate: []byte(sslRootCert),
 	}
 
 	return factory, diags

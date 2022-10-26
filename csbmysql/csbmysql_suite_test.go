@@ -57,7 +57,8 @@ var _ = BeforeSuite(func() {
 		"--publish=3306:3306",
 		"-e",
 		fmt.Sprintf("MYSQL_ROOT_PASSWORD=%s", adminPass),
-		"--mount source=mysql_config,destination=/etc/mysql/conf.d",
+		"--mount",
+		"source=mysql_config,destination=/etc/mysql/conf.d",
 		"--health-cmd",
 		fmt.Sprintf("mysqladmin -h %s -P %d -u %s -p%s ping", dbHost, port, adminUser, adminPass),
 		fmt.Sprintf("mysql:%s", mysqlVersion),
@@ -80,8 +81,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	mustRun("docker", "kill", "mysql")
-	mustRun("docker", "rm", "mysql")
+	mustRun("docker", "rm", "-f", "mysql")
 })
 
 func mustRun(command ...string) {
@@ -125,13 +125,16 @@ type definition struct {
 	Database,
 	Username,
 	Password string
-	Port       int
-	RequireSSL bool
+	Port        int
+	SSLRootCert []byte
 }
 
 type setDefinitionFunc func(*definition)
 
 func testGetResourceDefinition(optFns ...setDefinitionFunc) string {
+	caCertPath := path.Join(getCurrentDirectory(), "testfixtures", "ssl_mysql", "certs", "ca.crt")
+	rootCertificate, err := os.ReadFile(caCertPath)
+	Expect(err).NotTo(HaveOccurred())
 	c := definition{
 		ProviderName: providerName,
 		ResourceName: csbmysql.ResourceNameKey,
@@ -140,6 +143,7 @@ func testGetResourceDefinition(optFns ...setDefinitionFunc) string {
 		AdminPass:    adminPass,
 		Database:     database,
 		Port:         port,
+		SSLRootCert:  rootCertificate,
 	}
 
 	for _, fn := range optFns {
@@ -163,28 +167,25 @@ func resourceDefinitionWithPassword(password string) setDefinitionFunc {
 	}
 }
 
-func resourceDefinitionWithSSL(requireSSL bool) setDefinitionFunc {
-	return func(config *definition) {
-		config.RequireSSL = requireSSL
-	}
-}
-
 func createFixtureVolume() {
 	mustRun("docker", "volume", "create", "mysql_config")
 	for _, folder := range []string{"certs", "keys"} {
-		dockerVolumeRun(fmt.Sprintf(`rm -rf "/mnt/%s"`, folder))
-		dockerVolumeRun(fmt.Sprintf(`cp -r "/fixture/ssl_mysql/%s" /mnt`, folder))
+		dockerVolumeRun("rm", "-rf", fmt.Sprintf("/mnt/%s", folder))
+		dockerVolumeRun("cp", "-r", fmt.Sprintf("/fixture/ssl_mysql/%s", folder), "/mnt")
 	}
-	dockerVolumeRun(`rm "/mnt/my.cnf"`)
-	dockerVolumeRun(`cp "/fixture/my.cnf" "/mnt"`)
-	dockerVolumeRun(`chown mysql "/mnt/keys/server.key"`)
-	dockerVolumeRun(`chmod 0600 "/mnt/keys/server.key"`)
+	dockerVolumeRun("rm", "/mnt/my.cnf")
+	dockerVolumeRun("cp", "/fixture/my.cnf", "/mnt")
+	dockerVolumeRun("chown", "mysql", "/mnt/keys/server.key")
+	dockerVolumeRun("chmod", "0600", "/mnt/keys/server.key")
 }
 
-func dockerVolumeRun(cmd string) {
-	fixturePath := path.Join(getCurrentDirectory(), "testfixtures", "ssl_mysql")
+func dockerVolumeRun(cmd ...string) {
+	fmt.Fprintln(GinkgoWriter, "Running docker command", cmd)
+	fixturePath := path.Join(getCurrentDirectory(), "testfixtures")
 	volumeMount := fmt.Sprintf("%s:/fixture", fixturePath)
-	mustRun("docker", "run", "-v", volumeMount, "--mount", "source=mysql_config,destination=/mnt", "mysql", cmd)
+	dockerVolumeCommand := []string{"docker", "run", "-v", volumeMount, "--mount", "source=mysql_config,destination=/mnt", "mysql"}
+	dockerVolumeCommand = append(dockerVolumeCommand, cmd...)
+	mustRun(dockerVolumeCommand...)
 }
 
 func getCurrentDirectory() string {
