@@ -24,7 +24,9 @@ provider "{{.ProviderName}}" {
   username        = "{{.AdminUser}}"
   password        = "{{.AdminPass}}"
   database        = "{{.Database}}"
-  sslrootcert     = "{{.SSLRootCert}}"
+  sslrootcert     = <<EOF
+{{btoa .SSLRootCert}}
+EOF
 }
 
 resource "{{.ResourceName}}" "binding_user" {
