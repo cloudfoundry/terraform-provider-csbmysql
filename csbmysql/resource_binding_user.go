@@ -59,7 +59,6 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	cf := m.(connectionFactory)
 
 	db, err := cf.ConnectAsAdmin()
-
 	if err != nil {
 		return diag.FromErr(err)
 	}
