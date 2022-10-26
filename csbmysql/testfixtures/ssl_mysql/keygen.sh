@@ -12,6 +12,7 @@ openssl req -new -nodes -out server.csr \
 # Sign the CSR with the root CA key, producing a CA-signed certificate
 openssl x509 -req -in server.csr -sha256 -days 3650 \
     -CA certs/ca.crt -CAkey keys/ca.key -CAcreateserial \
+    -extfile <( echo "subjectAltName = DNS:localhost" ) \
     -out certs/server.crt
 
 # The CSR is no longer needed
