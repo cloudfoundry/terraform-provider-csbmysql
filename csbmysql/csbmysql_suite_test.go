@@ -179,7 +179,7 @@ func createFixtureVolume() {
 		dockerVolumeRun("rm", "-rf", fmt.Sprintf("/mnt/%s", folder))
 		dockerVolumeRun("cp", "-r", fmt.Sprintf("/fixture/ssl_mysql/%s", folder), "/mnt")
 	}
-	dockerVolumeRun("rm", "/mnt/my.cnf")
+	dockerVolumeRun("rm", "/mnt/my.cnf", "||", "true")
 	dockerVolumeRun("cp", "/fixture/my.cnf", "/mnt")
 	dockerVolumeRun("chown", "mysql", "/mnt/keys/server.key")
 	dockerVolumeRun("chmod", "0600", "/mnt/keys/server.key")
