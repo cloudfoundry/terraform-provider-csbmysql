@@ -14,11 +14,11 @@ terraform {
 }
 
 provider "csbmysql" {
-  host            = "localhost"
-  port            = 3306
-  username        = "admin-user"
-  password        = "fill-me-in"
-  database        = "mysql"
+  host     = "localhost"
+  port     = 3306
+  username = "admin-user"
+  password = "fill-me-in"
+  database = "mysql"
 }
 
 resource "csbmysql_binding_user" "binding_user" {
@@ -30,7 +30,7 @@ resource "csbmysql_binding_user" "binding_user" {
 ## Releasing
 To create a new GitHub release, decide on a new version number [according to Semanitc Versioning](https://semver.org/), and then:
 1. Create a tag on the main branch with a leading `v`:
-   `git tag vX.Y.X`
+   `git tag vX.Y.Z`
 1. Push the tag:
    `git push --tags`
 1. Wait for the GitHub action to run GoReleaser and create the new GitHub release
