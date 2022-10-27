@@ -25,7 +25,7 @@ provider "{{.ProviderName}}" {
   password        = "{{.AdminPass}}"
   database        = "{{.Database}}"
   sslrootcert     = <<EOF
-{{btoa .SSLRootCert}}
+{{.SSLRootCert}}
 EOF
 }
 

@@ -82,6 +82,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	mustRun("docker", "rm", "-f", "mysql")
+	mustRun("docker", "volume", "rm", "mysql_config")
 })
 
 func mustRun(command ...string) {
@@ -108,13 +109,7 @@ func executeSql(db *sql.DB, statement string) {
 func parse(m interface{}, resourceTmpl string) (string, error) {
 	var definitionBytes bytes.Buffer
 
-	t := template.New("resource").Funcs(
-		template.FuncMap{
-			"btoa": func(b []byte) string {
-				return string(b)
-			},
-		})
-	t = template.Must(t.Parse(resourceTmpl))
+	t := template.Must(template.New("resource").Parse(resourceTmpl))
 	if err := t.Execute(&definitionBytes, m); err != nil {
 		return "", err
 	}
@@ -130,9 +125,9 @@ type definition struct {
 	AdminPass,
 	Database,
 	Username,
-	Password string
-	Port        int
-	SSLRootCert []byte
+	Password,
+	SSLRootCert string
+	Port int
 }
 
 type setDefinitionFunc func(*definition)
@@ -149,7 +144,7 @@ func testGetResourceDefinition(optFns ...setDefinitionFunc) string {
 		AdminPass:    adminPass,
 		Database:     database,
 		Port:         port,
-		SSLRootCert:  rootCertificate,
+		SSLRootCert:  string(rootCertificate),
 	}
 
 	for _, fn := range optFns {
@@ -179,7 +174,7 @@ func createFixtureVolume() {
 		dockerVolumeRun("rm", "-rf", fmt.Sprintf("/mnt/%s", folder))
 		dockerVolumeRun("cp", "-r", fmt.Sprintf("/fixture/ssl_mysql/%s", folder), "/mnt")
 	}
-	dockerVolumeRun("rm", "/mnt/my.cnf", "||", "true")
+	dockerVolumeRun("rm", "-f", "/mnt/my.cnf")
 	dockerVolumeRun("cp", "/fixture/my.cnf", "/mnt")
 	dockerVolumeRun("chown", "mysql", "/mnt/keys/server.key")
 	dockerVolumeRun("chmod", "0600", "/mnt/keys/server.key")
@@ -188,7 +183,7 @@ func createFixtureVolume() {
 func dockerVolumeRun(cmd ...string) {
 	fixturePath := path.Join(getCurrentDirectory(), "testfixtures")
 	volumeMount := fmt.Sprintf("%s:/fixture", fixturePath)
-	dockerVolumeCommand := []string{"docker", "run", "-v", volumeMount, "--mount", "source=mysql_config,destination=/mnt", "mysql"}
+	dockerVolumeCommand := []string{"docker", "run", "--rm", "-v", volumeMount, "--mount", "source=mysql_config,destination=/mnt", "mysql"}
 	dockerVolumeCommand = append(dockerVolumeCommand, cmd...)
 	mustRun(dockerVolumeCommand...)
 }
