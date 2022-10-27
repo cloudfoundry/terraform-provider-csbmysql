@@ -8,62 +8,65 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-const (
-	databaseKey = "database"
-	passwordKey = "password"
-	usernameKey = "username"
-	portKey     = "port"
-	hostKey     = "host"
-	tlsKey      = "require_ssl"
-)
+// 1. SSL: true
+// 1.1 Improve testing
+// 1.2 Deploy
+// 2. Modify brokerpak
+// 2.1 Remove use_ssl
 
+// GCP
 func Provider() *schema.Provider {
 	return &schema.Provider{
-		Schema: map[string]*schema.Schema{
-			hostKey: {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			portKey: {
-				Type:         schema.TypeInt,
-				Required:     true,
-				ValidateFunc: validation.IsPortNumber,
-			},
-			usernameKey: {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			passwordKey: {
-				Type:      schema.TypeString,
-				Required:  true,
-				Sensitive: true,
-			},
-			databaseKey: {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			tlsKey: {
-				Type:     schema.TypeBool,
-				Optional: true,
-			},
-		},
-		ConfigureContextFunc: providerConfigure,
+		Schema:               ProviderSchema(),
+		ConfigureContextFunc: ProviderConfigureContext,
 		ResourcesMap: map[string]*schema.Resource{
-			"csbmysql_binding_user": resourceBindingUser(),
+			ResourceNameKey: ResourceBindingUser(),
 		},
 	}
 }
 
-func providerConfigure(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
+func ProviderSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		hostKey: {
+			Type:     schema.TypeString,
+			Required: true,
+		},
+		portKey: {
+			Type:         schema.TypeInt,
+			Required:     true,
+			ValidateFunc: validation.IsPortNumber,
+		},
+		usernameKey: {
+			Type:     schema.TypeString,
+			Required: true,
+		},
+		passwordKey: {
+			Type:      schema.TypeString,
+			Required:  true,
+			Sensitive: true,
+		},
+		databaseKey: {
+			Type:     schema.TypeString,
+			Required: true,
+		},
+		sslRootCertKey: {
+			Type:     schema.TypeString,
+			Optional: true,
+		},
+	}
+}
+
+func ProviderConfigureContext(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
+	sslRootCert := d.Get(sslRootCertKey).(string)
 	factory := connectionFactory{
-		host:      d.Get(hostKey).(string),
-		port:      d.Get(portKey).(int),
-		username:  d.Get(usernameKey).(string),
-		password:  d.Get(passwordKey).(string),
-		database:  d.Get(databaseKey).(string),
-		verifyTLS: d.Get(tlsKey).(bool),
+		host:          d.Get(hostKey).(string),
+		port:          d.Get(portKey).(int),
+		username:      d.Get(usernameKey).(string),
+		password:      d.Get(passwordKey).(string),
+		database:      d.Get(databaseKey).(string),
+		caCertificate: []byte(sslRootCert),
 	}
 
 	return factory, diags

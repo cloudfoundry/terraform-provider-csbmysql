@@ -1,13 +1,19 @@
 package csbmysql_test
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
+	"runtime"
 	"testing"
+	"text/template"
 	"time"
 
+	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -17,13 +23,13 @@ import (
 const (
 	adminUser = "root"
 	adminPass = "change-me"
-	dbHost    = "127.0.0.1"
+	dbHost    = "localhost"
 	port      = 3306
 	database  = "nuclear-flux"
 )
 
 var (
-	adminUserURI = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql", adminUser, adminPass, dbHost, port)
+	adminUserURI = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql?tls=skip-verify", adminUser, adminPass, dbHost, port)
 )
 
 func TestTerraformProviderCSBMySQL(t *testing.T) {
@@ -41,6 +47,8 @@ var _ = BeforeSuite(func() {
 		mysqlVersion = "8"
 	}
 
+	createFixtureVolume()
+
 	mustRun(
 		"docker",
 		"run",
@@ -49,6 +57,8 @@ var _ = BeforeSuite(func() {
 		"--publish=3306:3306",
 		"-e",
 		fmt.Sprintf("MYSQL_ROOT_PASSWORD=%s", adminPass),
+		"--mount",
+		"source=mysql_config,destination=/etc/mysql/conf.d",
 		"--health-cmd",
 		fmt.Sprintf("mysqladmin -h %s -P %d -u %s -p%s ping", dbHost, port, adminUser, adminPass),
 		fmt.Sprintf("mysql:%s", mysqlVersion),
@@ -71,8 +81,8 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	mustRun("docker", "kill", "mysql")
-	mustRun("docker", "rm", "mysql")
+	mustRun("docker", "rm", "-f", "mysql")
+	mustRun("docker", "volume", "rm", "mysql_config")
 })
 
 func mustRun(command ...string) {
@@ -94,4 +104,91 @@ func ensureMysqlIsUp(g Gomega) error {
 func executeSql(db *sql.DB, statement string) {
 	_, err := db.Exec(statement)
 	Expect(err).NotTo(HaveOccurred())
+}
+
+func parse(m interface{}, resourceTmpl string) (string, error) {
+	var definitionBytes bytes.Buffer
+
+	t := template.Must(template.New("resource").Parse(resourceTmpl))
+	if err := t.Execute(&definitionBytes, m); err != nil {
+		return "", err
+	}
+
+	return definitionBytes.String(), nil
+}
+
+type definition struct {
+	ProviderName,
+	ResourceName,
+	DBHost,
+	AdminUser,
+	AdminPass,
+	Database,
+	Username,
+	Password,
+	SSLRootCert string
+	Port int
+}
+
+type setDefinitionFunc func(*definition)
+
+func testGetResourceDefinition(optFns ...setDefinitionFunc) string {
+	caCertPath := path.Join(getCurrentDirectory(), "testfixtures", "ssl_mysql", "certs", "ca.crt")
+	rootCertificate, err := os.ReadFile(caCertPath)
+	Expect(err).NotTo(HaveOccurred())
+	c := definition{
+		ProviderName: providerName,
+		ResourceName: csbmysql.ResourceNameKey,
+		DBHost:       dbHost,
+		AdminUser:    adminUser,
+		AdminPass:    adminPass,
+		Database:     database,
+		Port:         port,
+		SSLRootCert:  string(rootCertificate),
+	}
+
+	for _, fn := range optFns {
+		fn(&c)
+	}
+
+	hcl, err := parse(&c, csbMySQLResource)
+	Expect(err).NotTo(HaveOccurred())
+	return hcl
+}
+
+func resourceDefinitionWithUsername(username string) setDefinitionFunc {
+	return func(config *definition) {
+		config.Username = username
+	}
+}
+
+func resourceDefinitionWithPassword(password string) setDefinitionFunc {
+	return func(config *definition) {
+		config.Password = password
+	}
+}
+
+func createFixtureVolume() {
+	mustRun("docker", "volume", "create", "mysql_config")
+	for _, folder := range []string{"certs", "keys"} {
+		dockerVolumeRun("rm", "-rf", fmt.Sprintf("/mnt/%s", folder))
+		dockerVolumeRun("cp", "-r", fmt.Sprintf("/fixture/ssl_mysql/%s", folder), "/mnt")
+	}
+	dockerVolumeRun("rm", "-f", "/mnt/my.cnf")
+	dockerVolumeRun("cp", "/fixture/my.cnf", "/mnt")
+	dockerVolumeRun("chown", "mysql", "/mnt/keys/server.key")
+	dockerVolumeRun("chmod", "0600", "/mnt/keys/server.key")
+}
+
+func dockerVolumeRun(cmd ...string) {
+	fixturePath := path.Join(getCurrentDirectory(), "testfixtures")
+	volumeMount := fmt.Sprintf("%s:/fixture", fixturePath)
+	dockerVolumeCommand := []string{"docker", "run", "--rm", "-v", volumeMount, "--mount", "source=mysql_config,destination=/mnt", "mysql"}
+	dockerVolumeCommand = append(dockerVolumeCommand, cmd...)
+	mustRun(dockerVolumeCommand...)
+}
+
+func getCurrentDirectory() string {
+	_, file, _, _ := runtime.Caller(1)
+	return filepath.Dir(file)
 }

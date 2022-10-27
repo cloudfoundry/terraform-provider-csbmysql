@@ -1,21 +1,35 @@
 package csbmysql
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/go-sql-driver/mysql"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
+const customCaConfigName = "custom-ca"
+
 type connectionFactory struct {
-	host      string
-	port      int
-	username  string
-	password  string
-	database  string
-	verifyTLS bool
+	host          string
+	port          int
+	username      string
+	password      string
+	database      string
+	caCertificate []byte
 }
 
 func (c connectionFactory) ConnectAsAdmin() (*sql.DB, error) {
+	if len(c.caCertificate) > 0 {
+		if err := c.registerCustomCA(); err != nil {
+			return nil, err
+		}
+	}
 	return c.connect(c.uri())
 }
 
@@ -25,6 +39,10 @@ func (c connectionFactory) connect(uri string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to connect to MySQL %q: %w", c.uriRedacted(), err)
 	}
 
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(5)
+
 	return db, nil
 }
 func (c connectionFactory) uriWithCreds(username, password string) string {
@@ -33,10 +51,24 @@ func (c connectionFactory) uriWithCreds(username, password string) string {
 }
 
 func (c connectionFactory) tlsMode() string {
-	if c.verifyTLS {
-		return "true"
+	if len(c.caCertificate) > 0 {
+		return customCaConfigName
 	}
-	return "skip-verify"
+	return "true"
+}
+
+func (c connectionFactory) registerCustomCA() error {
+	certPool := x509.NewCertPool()
+	if ok := certPool.AppendCertsFromPEM(c.caCertificate); !ok {
+		return fmt.Errorf("unable to append CA cert:\n[ %v ]", c.caCertificate)
+	}
+	tlsConfig := &tls.Config{}
+	tlsConfig.RootCAs = certPool
+	err := mysql.RegisterTLSConfig(customCaConfigName, tlsConfig)
+	if err != nil {
+		return fmt.Errorf("unable to register custom-ca mysql config: %s", err.Error())
+	}
+	return nil
 }
 
 func (c connectionFactory) uri() string {

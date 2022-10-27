@@ -7,7 +7,6 @@ import (
 	"log"
 	"sync"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -23,19 +22,9 @@ var (
 	deleteBindingMutex sync.Mutex
 )
 
-func resourceBindingUser() *schema.Resource {
+func ResourceBindingUser() *schema.Resource {
 	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			bindingUsernameKey: {
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			bindingPasswordKey: {
-				Type:      schema.TypeString,
-				Required:  true,
-				Sensitive: true,
-			},
-		},
+		Schema:        resourceBindingUserSchema,
 		CreateContext: resourceBindingUserCreate,
 		ReadContext:   resourceBindingUserRead,
 		UpdateContext: resourceBindingUserUpdate,
@@ -43,6 +32,18 @@ func resourceBindingUser() *schema.Resource {
 		Description:   "A MySQL Server binding for the CSB brokerpak",
 		UseJSONNumber: true,
 	}
+}
+
+var resourceBindingUserSchema = map[string]*schema.Schema{
+	bindingUsernameKey: {
+		Type:     schema.TypeString,
+		Required: true,
+	},
+	bindingPasswordKey: {
+		Type:      schema.TypeString,
+		Required:  true,
+		Sensitive: true,
+	},
 }
 
 func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
@@ -58,7 +59,6 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	cf := m.(connectionFactory)
 
 	db, err := cf.ConnectAsAdmin()
-
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -83,12 +83,12 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	}
 
 	if !userPresent {
-		tlsRequired := "NONE"
-		if cf.verifyTLS {
-			tlsRequired = "SSL"
-		}
-		_, err := tx.Exec(fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s REQUIRE %s", quotedIdentifier(username),
-			quotedIdentifier(bindingUserHostAll), quotedString(password), tlsRequired))
+		_, err := tx.Exec(
+			fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s REQUIRE SSL",
+				quotedIdentifier(username),
+				quotedIdentifier(bindingUserHostAll),
+				quotedString(password),
+			))
 		if err != nil {
 			return diag.FromErr(err)
 		}
