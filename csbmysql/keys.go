@@ -8,4 +8,7 @@ const (
 	hostKey         = "host"
 	ResourceNameKey = "csbmysql_binding_user"
 	sslRootCertKey  = "sslrootcert"
+	sslCertKey      = "sslcert"
+	sslKeyKey       = "sslkey"
+	skipVerifyKey   = "skip_verify"
 )

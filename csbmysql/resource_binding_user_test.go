@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 )
 
 const (
@@ -27,6 +28,13 @@ provider "{{.ProviderName}}" {
   sslrootcert     = <<EOF
 {{.SSLRootCert}}
 EOF
+  sslcert     = <<EOF
+{{.SSLClientCert}}
+EOF
+  sslkey          =  <<EOF
+"{{.SSLClientPrivateKey}}"
+EOF
+  skip_verify     = "{{.SkipVerify}}"
 }
 
 resource "{{.ResourceName}}" "binding_user" {
@@ -57,15 +65,16 @@ var _ = Describe("Provider", func() {
 					resource.TestCheckResourceAttr(tfStateResourceName, "username", username),
 					resource.TestCheckResourceAttr(tfStateResourceName, "password", password),
 					checkUserIsCreated(username, password),
+					checkSSLCipher(requireSSL),
 				),
 			}},
 		})
 	},
-		Entry("without TLS", "some-user", "some-password", false))
+		Entry("with TLS", "some-user", "some-password", true))
 
 })
 
-func checkUserIsCreated(username, password string) func(state *terraform.State) error {
+func checkUserIsCreated(username, password string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		By("CHECKING RESOURCE CREATE")
 		By("Confirming that the binding user exists")
@@ -152,7 +161,7 @@ func checkUserIsCreated(username, password string) func(state *terraform.State) 
 	}
 }
 
-func checkUserIsDestroyed(username string) func(state *terraform.State) error {
+func checkUserIsDestroyed(username string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		var (
 			taskId   int
@@ -188,6 +197,29 @@ func checkUserIsDestroyed(username string) func(state *terraform.State) error {
 		Expect(rows.Scan(&taskId, &title, &status, &priority)).NotTo(HaveOccurred())
 		Expect(taskId).To(BeNumerically("==", 2))
 
+		return nil
+	}
+}
+
+func checkSSLCipher(requireSSL bool) resource.TestCheckFunc {
+	return func(state *terraform.State) (err error) {
+		if !requireSSL {
+			return nil
+		}
+
+		By("Checking the SSL Cipher")
+		db, err := sql.Open("mysql", adminUserURI)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { err = db.Close() }()
+
+		var res struct {
+			VariableName string `sql:"Variable_name"`
+			Value        string `sql:"Value"`
+		}
+		err = db.QueryRow("SHOW STATUS LIKE 'Ssl_cipher'").Scan(&res.VariableName, &res.Value)
+		Expect(err).NotTo(HaveOccurred())
+		Expect("Ssl_cipher").To(Equal(res.VariableName))
+		Expect("TLS_AES_128_GCM_SHA256").To(Equal(res.Value))
 		return nil
 	}
 }
