@@ -30,7 +30,8 @@ const (
 )
 
 var (
-	adminUserURI = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql?tls=skip-verify", adminUser, adminPass, dbHost, port)
+	adminUserURI       = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql?tls=skip-verify", adminUser, adminPass, dbHost, port)
+	latestMySQLVersion = "8"
 )
 
 func TestTerraformProviderCSBMySQL(t *testing.T) {
@@ -43,10 +44,6 @@ var _ = BeforeSuite(func() {
 	mustRun("go", "build", "..")
 
 	By("Starting MySQL server")
-	mysqlVersion, ok := os.LookupEnv("TEST_MYSQL_VERSION_IMAGE_TAG")
-	if !ok {
-		mysqlVersion = "8"
-	}
 
 	createFixtureVolume()
 
@@ -62,7 +59,7 @@ var _ = BeforeSuite(func() {
 		"source=mysql_config,destination=/etc/mysql/conf.d",
 		"--health-cmd",
 		fmt.Sprintf("mysqladmin -h %s -P %d -u %s -p%s ping", dbHost, port, adminUser, adminPass),
-		fmt.Sprintf("mysql:%s", mysqlVersion),
+		fmt.Sprintf("mysql:%s", getMySQLVersion()),
 	)
 	Eventually(ensureMysqlIsUp).WithTimeout(2 * time.Minute).WithPolling(time.Second).Should(Succeed())
 
@@ -80,6 +77,14 @@ var _ = BeforeSuite(func() {
 )`, database))
 	executeSql(db, fmt.Sprintf("insert into `%s`.previous_table(pk, value) values (1, 'value')", database))
 })
+
+func getMySQLVersion() string {
+	mysqlVersion, ok := os.LookupEnv("TEST_MYSQL_VERSION_IMAGE_TAG")
+	if !ok {
+		return latestMySQLVersion
+	}
+	return mysqlVersion
+}
 
 var _ = AfterSuite(func() {
 	mustRun("docker", "rm", "-f", "mysql")
