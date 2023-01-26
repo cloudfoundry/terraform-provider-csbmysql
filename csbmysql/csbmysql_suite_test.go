@@ -13,19 +13,21 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
+
+	"github.com/cloudfoundry/terraform-provider-csbmysql/csbmysql"
 )
 
 const (
-	adminUser = "root"
-	adminPass = "change-me"
-	dbHost    = "localhost"
-	port      = 3306
-	database  = "nuclear-flux"
+	adminUser          = "root"
+	adminPass          = "change-me"
+	dbHost             = "localhost"
+	port               = 3306
+	database           = "nuclear-flux"
+	latestMySQLVersion = "8"
 )
 
 var (
@@ -42,10 +44,6 @@ var _ = BeforeSuite(func() {
 	mustRun("go", "build", "..")
 
 	By("Starting MySQL server")
-	mysqlVersion, ok := os.LookupEnv("TEST_MYSQL_VERSION_IMAGE_TAG")
-	if !ok {
-		mysqlVersion = "8"
-	}
 
 	createFixtureVolume()
 
@@ -61,7 +59,7 @@ var _ = BeforeSuite(func() {
 		"source=mysql_config,destination=/etc/mysql/conf.d",
 		"--health-cmd",
 		fmt.Sprintf("mysqladmin -h %s -P %d -u %s -p%s ping", dbHost, port, adminUser, adminPass),
-		fmt.Sprintf("mysql:%s", mysqlVersion),
+		fmt.Sprintf("mysql:%s", getMySQLVersion()),
 	)
 	Eventually(ensureMysqlIsUp).WithTimeout(2 * time.Minute).WithPolling(time.Second).Should(Succeed())
 
@@ -79,6 +77,14 @@ var _ = BeforeSuite(func() {
 )`, database))
 	executeSql(db, fmt.Sprintf("insert into `%s`.previous_table(pk, value) values (1, 'value')", database))
 })
+
+func getMySQLVersion() string {
+	mysqlVersion, ok := os.LookupEnv("TEST_MYSQL_VERSION_IMAGE_TAG")
+	if !ok {
+		return latestMySQLVersion
+	}
+	return mysqlVersion
+}
 
 var _ = AfterSuite(func() {
 	mustRun("docker", "rm", "-f", "mysql")
@@ -126,8 +132,11 @@ type definition struct {
 	Database,
 	Username,
 	Password,
-	SSLRootCert string
-	Port int
+	SSLRootCert,
+	SSLClientCert,
+	SSLClientPrivateKey string
+	Port       int
+	SkipVerify bool
 }
 
 type setDefinitionFunc func(*definition)
@@ -136,15 +145,27 @@ func testGetResourceDefinition(optFns ...setDefinitionFunc) string {
 	caCertPath := path.Join(getCurrentDirectory(), "testfixtures", "ssl_mysql", "certs", "ca.crt")
 	rootCertificate, err := os.ReadFile(caCertPath)
 	Expect(err).NotTo(HaveOccurred())
+
+	clientCertPath := path.Join(getCurrentDirectory(), "testfixtures", "ssl_mysql", "certs", "client.crt")
+	clientCertificate, err := os.ReadFile(clientCertPath)
+	Expect(err).NotTo(HaveOccurred())
+
+	clientPrivateKeyPath := path.Join(getCurrentDirectory(), "testfixtures", "ssl_mysql", "keys", "client.key")
+	clientPrivateKey, err := os.ReadFile(clientPrivateKeyPath)
+	Expect(err).NotTo(HaveOccurred())
+
 	c := definition{
-		ProviderName: providerName,
-		ResourceName: csbmysql.ResourceNameKey,
-		DBHost:       dbHost,
-		AdminUser:    adminUser,
-		AdminPass:    adminPass,
-		Database:     database,
-		Port:         port,
-		SSLRootCert:  string(rootCertificate),
+		ProviderName:        providerName,
+		ResourceName:        csbmysql.ResourceNameKey,
+		DBHost:              dbHost,
+		AdminUser:           adminUser,
+		AdminPass:           adminPass,
+		Database:            database,
+		Port:                port,
+		SSLRootCert:         string(rootCertificate),
+		SSLClientCert:       string(clientCertificate),
+		SSLClientPrivateKey: string(clientPrivateKey),
+		SkipVerify:          false,
 	}
 
 	for _, fn := range optFns {
