@@ -22,16 +22,16 @@ import (
 )
 
 const (
-	adminUser = "root"
-	adminPass = "change-me"
-	dbHost    = "localhost"
-	port      = 3306
-	database  = "nuclear-flux"
+	adminUser          = "root"
+	adminPass          = "change-me"
+	dbHost             = "localhost"
+	port               = 3306
+	database           = "nuclear-flux"
+	latestMySQLVersion = "8"
 )
 
 var (
-	adminUserURI       = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql?tls=skip-verify", adminUser, adminPass, dbHost, port)
-	latestMySQLVersion = "8"
+	adminUserURI = fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql?tls=skip-verify", adminUser, adminPass, dbHost, port)
 )
 
 func TestTerraformProviderCSBMySQL(t *testing.T) {
