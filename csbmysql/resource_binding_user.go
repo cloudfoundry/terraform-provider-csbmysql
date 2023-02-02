@@ -14,6 +14,7 @@ import (
 const (
 	bindingUsernameKey = "username"
 	bindingPasswordKey = "password"
+	bindingInsecureKey = "allow_insecure_connections"
 	bindingUserHostAll = "%"
 )
 
@@ -44,6 +45,10 @@ var resourceBindingUserSchema = map[string]*schema.Schema{
 		Required:  true,
 		Sensitive: true,
 	},
+	bindingInsecureKey: {
+		Type:     schema.TypeBool,
+		Optional: true,
+	},
 }
 
 func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
@@ -55,6 +60,7 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 
 	username := d.Get(bindingUsernameKey).(string)
 	password := d.Get(bindingPasswordKey).(string)
+	allowInsecureConnections := d.Get(bindingInsecureKey).(bool)
 
 	cf := m.(connectionFactory)
 
@@ -83,12 +89,18 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	}
 
 	if !userPresent {
+		sslRequirement := "REQUIRE SSL"
+		if allowInsecureConnections {
+			sslRequirement = ""
+		}
 		_, err := tx.Exec(
-			fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s REQUIRE SSL",
+			fmt.Sprintf("CREATE USER %s@%s IDENTIFIED BY %s %s",
 				quotedIdentifier(username),
 				quotedIdentifier(bindingUserHostAll),
 				quotedString(password),
-			))
+				sslRequirement,
+			),
+		)
 		if err != nil {
 			return diag.FromErr(err)
 		}

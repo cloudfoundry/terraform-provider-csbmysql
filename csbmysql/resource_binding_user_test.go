@@ -40,6 +40,7 @@ EOF
 resource "{{.ResourceName}}" "binding_user" {
   username = "{{.Username}}"
   password = "{{.Password}}"
+  allow_insecure_connections = {{.AllowInsecureConnections}}
 }
 `
 )
@@ -50,8 +51,12 @@ var (
 
 var _ = Describe("Provider", func() {
 
-	DescribeTable("User can be created", func(username, password string, requireSSL bool) {
+	DescribeTable("User can be created", func(username, password string, requireUserSSL bool) {
 		provider := initTestProvider()
+		allowInsecureConnections := "true"
+		if requireUserSSL {
+			allowInsecureConnections = "false"
+		}
 		resource.Test(GinkgoT(), resource.TestCase{
 			IsUnitTest:        true,
 			ProviderFactories: getTestProviderFactories(provider),
@@ -60,21 +65,24 @@ var _ = Describe("Provider", func() {
 				Config: testGetResourceDefinition(
 					resourceDefinitionWithUsername(username),
 					resourceDefinitionWithPassword(password),
+					resourceDefinitionWithInsecureConnections(!requireUserSSL),
 				),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(tfStateResourceName, "username", username),
 					resource.TestCheckResourceAttr(tfStateResourceName, "password", password),
-					checkUserIsCreated(username, password),
-					checkSSLCipher(requireSSL),
+					resource.TestCheckResourceAttr(tfStateResourceName, "allow_insecure_connections", allowInsecureConnections),
+					checkUserIsCreated(username, password, !requireUserSSL),
+					checkSSLCipher(requireUserSSL),
 				),
 			}},
 		})
 	},
-		Entry("with TLS", "some-user", "some-password", true))
+		Entry("with TLS", "some-user", "some-password", true),
+		Entry("with insecure connections allowed", "some-other-user", "some-other-password", false))
 
 })
 
-func checkUserIsCreated(username, password string) resource.TestCheckFunc {
+func checkUserIsCreated(username, password string, insecureUserConnection bool) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		By("CHECKING RESOURCE CREATE")
 		By("Confirming that the binding user exists")
@@ -100,8 +108,11 @@ func checkUserIsCreated(username, password string) resource.TestCheckFunc {
 		Expect(rows.Next()).To(BeFalse())
 
 		By("Connecting as the binding user")
-
-		userURI := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?tls=skip-verify", username, password, dbHost, port, database)
+		tlsMode := "skip-verify"
+		if insecureUserConnection {
+			tlsMode = "false"
+		}
+		userURI := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?tls=%s", username, password, dbHost, port, database, tlsMode)
 		dbUser, err := sql.Open("mysql", userURI)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -123,7 +134,7 @@ func checkUserIsCreated(username, password string) resource.TestCheckFunc {
 		)
 		Expect(err).NotTo(HaveOccurred())
 
-		result, err := dbUser.Exec("insert into tasks(task_id, title, status, priority) values (1, 'task', 2, 3), (2, 'another task', 3, 4)")
+		result, err := dbUser.Exec("insert into tasks(title, status, priority) values ('task', 2, 3), ('another task', 3, 4)")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.RowsAffected()).To(BeNumerically("==", 2))
 
@@ -156,6 +167,15 @@ func checkUserIsCreated(username, password string) resource.TestCheckFunc {
 
 		_, err = dbUser.Exec("drop table previous_table")
 		Expect(err).NotTo(HaveOccurred())
+
+		By("Re-creating the pre-existing table")
+
+		_, err = dbUser.Exec("create table previous_table (pk int primary key not null auto_increment, value varchar(255) not null)")
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err = dbUser.Exec(`insert into previous_table(pk, value) values (1, 'value')`)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.RowsAffected()).To(BeNumerically("==", 1))
 
 		return nil
 	}
