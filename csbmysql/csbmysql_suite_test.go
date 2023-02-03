@@ -135,8 +135,9 @@ type definition struct {
 	SSLRootCert,
 	SSLClientCert,
 	SSLClientPrivateKey string
-	Port       int
-	SkipVerify bool
+	Port                     int
+	SkipVerify               bool
+	AllowInsecureConnections bool
 }
 
 type setDefinitionFunc func(*definition)
@@ -186,6 +187,12 @@ func resourceDefinitionWithUsername(username string) setDefinitionFunc {
 func resourceDefinitionWithPassword(password string) setDefinitionFunc {
 	return func(config *definition) {
 		config.Password = password
+	}
+}
+
+func resourceDefinitionWithInsecureConnections(allowed bool) setDefinitionFunc {
+	return func(config *definition) {
+		config.AllowInsecureConnections = allowed
 	}
 }
 
