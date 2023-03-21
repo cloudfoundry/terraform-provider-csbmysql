@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 const customCaConfigName = "custom-ca"
