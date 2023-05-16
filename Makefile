@@ -18,6 +18,8 @@ build: version download $(SRC) ## build the provider
 .PHONY: clean
 clean: ## clean up build artifacts
 	- rm -rf dist
+	rm -rf /tmp/tpcsbmysql-pkgs.txt
+	rm -rf /tmp/tpcsbmysql-coverage.out
 
 download: ## download dependencies
 	go mod download
@@ -25,6 +27,12 @@ download: ## download dependencies
 .PHONY: ginkgo
 ginkgo: ## run the tests with Ginkgo
 	go run github.com/onsi/ginkgo/v2/ginkgo -r
+
+.PHONY: ginkgo-coverage
+ginkgo-coverage: ## ginkgo coverage score
+	(go list ./... | grep -v fake) | paste -sd "," > /tmp/tpcsbmysql-pkgs.txt
+	go test -coverpkg=`cat /tmp/tpcsbmysql-pkgs.txt` -coverprofile=/tmp/tpcsbmysql-coverage.out ./...
+	go tool cover -func /tmp/tpcsbmysql-coverage.out | grep total
 
 .PHONY: version
 version:
