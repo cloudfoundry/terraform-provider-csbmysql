@@ -6,7 +6,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.29.0
 	github.com/onsi/ginkgo/v2 v2.12.1
-	github.com/onsi/gomega v1.27.10
+	github.com/onsi/gomega v1.28.0
 )
 
 require (
