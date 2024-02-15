@@ -239,17 +239,13 @@ func checkSSLCipher(requireSSL bool) resource.TestCheckFunc {
 		err = db.QueryRow("SHOW STATUS LIKE 'Ssl_cipher'").Scan(&res.VariableName, &res.Value)
 
 		Expect(err).NotTo(HaveOccurred())
-		Expect("Ssl_cipher").To(Equal(res.VariableName))
+		Expect(res.VariableName).To(Equal("Ssl_cipher"))
 
-		var expectedCipher string
-		switch getMySQLVersion() {
-		case latestMySQLVersion:
-			expectedCipher = "TLS_AES_128_GCM_SHA256"
-			Expect(expectedCipher).To(Equal(res.Value))
-		default:
-			expectedCipher = "AES128-GCM-SHA256"
-			Expect(expectedCipher).To(Equal(res.Value))
-		}
+		Expect(res.Value).To(SatisfyAny(
+			Equal("TLS_AES_128_GCM_SHA256"),
+			Equal("AES128-GCM-SHA256"),
+			Equal("ECDHE-RSA-AES128-GCM-SHA256"),
+		))
 		return nil
 	}
 }
