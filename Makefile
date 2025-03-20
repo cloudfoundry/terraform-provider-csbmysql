@@ -24,7 +24,7 @@ download: ## download dependencies
 
 .PHONY: ginkgo
 ginkgo: ## run the tests with Ginkgo
-	go run github.com/onsi/ginkgo/v2/ginkgo -r
+	go tool ginkgo -r
 
 .PHONY: ginkgo-coverage
 ginkgo-coverage: ## ginkgo coverage score

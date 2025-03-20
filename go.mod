@@ -66,3 +66,5 @@ require (
 	google.golang.org/protobuf v1.36.3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+tool github.com/onsi/ginkgo/v2/ginkgo
