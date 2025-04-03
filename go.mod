@@ -1,6 +1,6 @@
 module github.com/cloudfoundry/terraform-provider-csbmysql
 
-go 1.24.1
+go 1.24.2
 require (
 	github.com/go-sql-driver/mysql v1.9.1
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.36.1
