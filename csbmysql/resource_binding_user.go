@@ -16,6 +16,7 @@ const (
 	bindingPasswordKey = "password"
 	bindingInsecureKey = "allow_insecure_connections"
 	bindingUserHostAll = "%"
+	bindingReadOnlyKey = "read_only"
 )
 
 var (
@@ -49,6 +50,11 @@ var resourceBindingUserSchema = map[string]*schema.Schema{
 		Type:     schema.TypeBool,
 		Optional: true,
 	},
+	bindingReadOnlyKey: {
+		Type:     schema.TypeBool,
+		Optional: true,
+		Default:  false,
+	},
 }
 
 func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
@@ -61,6 +67,7 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 	username := d.Get(bindingUsernameKey).(string)
 	password := d.Get(bindingPasswordKey).(string)
 	allowInsecureConnections := d.Get(bindingInsecureKey).(bool)
+	readOnly := d.Get(bindingReadOnlyKey).(bool)
 
 	cf := m.(connectionFactory)
 
@@ -106,8 +113,16 @@ func resourceBindingUserCreate(ctx context.Context, d *schema.ResourceData, m an
 		}
 	}
 
-	grantStatement := fmt.Sprintf("GRANT ALL ON %s.* TO %s@%s", quotedIdentifier(cf.database),
-		quotedIdentifier(username), quotedIdentifier(bindingUserHostAll))
+	permission := "ALL"
+	if readOnly {
+		permission = "SELECT"
+	}
+
+	grantStatement := fmt.Sprintf("GRANT %s ON %s.* TO %s@%s",
+		permission,
+		quotedIdentifier(cf.database),
+		quotedIdentifier(username),
+		quotedIdentifier(bindingUserHostAll))
 	_, err = tx.Exec(grantStatement)
 	if err != nil {
 		return diag.FromErr(err)

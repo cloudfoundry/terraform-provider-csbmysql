@@ -41,6 +41,7 @@ resource "{{.ResourceName}}" "binding_user" {
   username = "{{.Username}}"
   password = "{{.Password}}"
   allow_insecure_connections = {{.AllowInsecureConnections}}
+  read_only = {{.ReadOnly}}
 }
 `
 )
@@ -51,11 +52,15 @@ var (
 
 var _ = Describe("Provider", func() {
 
-	DescribeTable("User can be created", func(username, password string, requireUserSSL bool) {
+	DescribeTable("User can be created", func(username, password string, requireUserSSL, readOnly bool) {
 		provider := initTestProvider()
 		allowInsecureConnections := "true"
 		if requireUserSSL {
 			allowInsecureConnections = "false"
+		}
+		readOnlyUser := "false"
+		if readOnly {
+			readOnlyUser = "true"
 		}
 		resource.Test(GinkgoT(), resource.TestCase{
 			IsUnitTest:        true,
@@ -66,23 +71,26 @@ var _ = Describe("Provider", func() {
 					resourceDefinitionWithUsername(username),
 					resourceDefinitionWithPassword(password),
 					resourceDefinitionWithInsecureConnections(!requireUserSSL),
+					resourceDefinitionWithReadOnly(readOnly),
 				),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(tfStateResourceName, "username", username),
 					resource.TestCheckResourceAttr(tfStateResourceName, "password", password),
 					resource.TestCheckResourceAttr(tfStateResourceName, "allow_insecure_connections", allowInsecureConnections),
-					checkUserIsCreated(username, password, !requireUserSSL),
+					resource.TestCheckResourceAttr(tfStateResourceName, "read_only", readOnlyUser),
+					checkUserIsCreated(username, password, !requireUserSSL, readOnly),
 					checkSSLCipher(requireUserSSL),
 				),
 			}},
 		})
 	},
-		Entry("with TLS", "some-user", "some-password", true),
-		Entry("with insecure connections allowed", "some-other-user", "some-other-password", false))
+		Entry("with TLS", "some-user", "some-password", true, false),
+		Entry("with insecure connections allowed", "some-other-user", "some-other-password", false, false),
+		Entry("with readonly", "random-user", "random-password", false, true))
 
 })
 
-func checkUserIsCreated(username, password string, insecureUserConnection bool) resource.TestCheckFunc {
+func checkUserIsCreated(username, password string, insecureUserConnection, readOnly bool) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		By("CHECKING RESOURCE CREATE")
 		By("Confirming that the binding user exists")
@@ -132,50 +140,55 @@ func checkUserIsCreated(username, password string, insecureUserConnection bool) 
 						created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 					)`,
 		)
-		Expect(err).NotTo(HaveOccurred())
 
-		result, err := dbUser.Exec("insert into tasks(title, status, priority) values ('task', 2, 3), ('another task', 3, 4)")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result.RowsAffected()).To(BeNumerically("==", 2))
+		if readOnly {
+			Expect(err).To(MatchError(ContainSubstring("CREATE command denied to user")))
+		} else {
+			Expect(err).NotTo(HaveOccurred())
 
-		By("Reading and modifying existing data as the binding user")
-		rows, err = dbUser.Query(`select * from previous_table`)
-		Expect(err).NotTo(HaveOccurred())
+			result, err := dbUser.Exec("insert into tasks(title, status, priority) values ('task', 2, 3), ('another task', 3, 4)")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RowsAffected()).To(BeNumerically("==", 2))
 
-		Expect(rows.Next()).To(BeTrue())
-		var (
-			id    int
-			value string
-		)
-		err = rows.Scan(&id, &value)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(id).To(BeNumerically("==", 1))
-		Expect(value).To(Equal("value"))
-		Expect(rows.Next()).To(BeFalse())
+			By("Reading and modifying existing data as the binding user")
+			rows, err = dbUser.Query(`select * from previous_table`)
+			Expect(err).NotTo(HaveOccurred())
 
-		result, err = dbUser.Exec(`insert into previous_table(pk, value) values (2, 'cheese')`)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result.RowsAffected()).To(BeNumerically("==", 1))
+			Expect(rows.Next()).To(BeTrue())
+			var (
+				id    int
+				value string
+			)
+			err = rows.Scan(&id, &value)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(id).To(BeNumerically("==", 1))
+			Expect(value).To(Equal("value"))
+			Expect(rows.Next()).To(BeFalse())
 
-		result, err = dbUser.Exec(`update previous_table set value='new_value' where pk=1`)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result.RowsAffected()).To(BeNumerically("==", 1))
+			result, err = dbUser.Exec(`insert into previous_table(pk, value) values (2, 'cheese')`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RowsAffected()).To(BeNumerically("==", 1))
 
-		result, err = dbUser.Exec(`delete from previous_table where pk in (1, 2)`)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result.RowsAffected()).To(BeNumerically("==", 2))
+			result, err = dbUser.Exec(`update previous_table set value='new_value' where pk=1`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RowsAffected()).To(BeNumerically("==", 1))
 
-		_, err = dbUser.Exec("drop table previous_table")
-		Expect(err).NotTo(HaveOccurred())
+			result, err = dbUser.Exec(`delete from previous_table where pk in (1, 2)`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RowsAffected()).To(BeNumerically("==", 2))
 
-		By("Re-creating the pre-existing table")
+			_, err = dbUser.Exec("drop table previous_table")
+			Expect(err).NotTo(HaveOccurred())
 
-		_, err = dbUser.Exec("create table previous_table (pk int primary key not null auto_increment, value varchar(255) not null)")
-		Expect(err).NotTo(HaveOccurred())
+			By("Re-creating the pre-existing table")
 
-		result, err = dbUser.Exec(`insert into previous_table(pk, value) values (1, 'value')`)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(result.RowsAffected()).To(BeNumerically("==", 1))
+			_, err = dbUser.Exec("create table previous_table (pk int primary key not null auto_increment, value varchar(255) not null)")
+			Expect(err).NotTo(HaveOccurred())
+
+			result, err = dbUser.Exec(`insert into previous_table(pk, value) values (1, 'value')`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RowsAffected()).To(BeNumerically("==", 1))
+		}
 
 		return nil
 	}
