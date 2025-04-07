@@ -3,7 +3,7 @@ module github.com/cloudfoundry/terraform-provider-csbmysql
 go 1.24.2
 
 require (
-	github.com/go-sql-driver/mysql v1.9.1
+	github.com/go-sql-driver/mysql v1.9.2
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.36.1
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.37.0
