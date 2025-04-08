@@ -65,7 +65,7 @@ var _ = Describe("Provider", func() {
 		resource.Test(GinkgoT(), resource.TestCase{
 			IsUnitTest:        true,
 			ProviderFactories: getTestProviderFactories(provider),
-			CheckDestroy:      checkUserIsDestroyed(username),
+			CheckDestroy:      checkUserIsDestroyed(username, readOnly),
 			Steps: []resource.TestStep{{
 				Config: testGetResourceDefinition(
 					resourceDefinitionWithUsername(username),
@@ -142,59 +142,88 @@ func checkUserIsCreated(username, password string, insecureUserConnection, readO
 		)
 
 		if readOnly {
+			By("By validating that a readonly user can't create a table")
 			Expect(err).To(MatchError(ContainSubstring("CREATE command denied to user")))
+
+			validateReadOnlyBindingUser(dbUser)
+
 		} else {
 			Expect(err).NotTo(HaveOccurred())
 
-			result, err := dbUser.Exec("insert into tasks(title, status, priority) values ('task', 2, 3), ('another task', 3, 4)")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.RowsAffected()).To(BeNumerically("==", 2))
-
-			By("Reading and modifying existing data as the binding user")
-			rows, err = dbUser.Query(`select * from previous_table`)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(rows.Next()).To(BeTrue())
-			var (
-				id    int
-				value string
-			)
-			err = rows.Scan(&id, &value)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(id).To(BeNumerically("==", 1))
-			Expect(value).To(Equal("value"))
-			Expect(rows.Next()).To(BeFalse())
-
-			result, err = dbUser.Exec(`insert into previous_table(pk, value) values (2, 'cheese')`)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.RowsAffected()).To(BeNumerically("==", 1))
-
-			result, err = dbUser.Exec(`update previous_table set value='new_value' where pk=1`)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.RowsAffected()).To(BeNumerically("==", 1))
-
-			result, err = dbUser.Exec(`delete from previous_table where pk in (1, 2)`)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.RowsAffected()).To(BeNumerically("==", 2))
-
-			_, err = dbUser.Exec("drop table previous_table")
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Re-creating the pre-existing table")
-
-			_, err = dbUser.Exec("create table previous_table (pk int primary key not null auto_increment, value varchar(255) not null)")
-			Expect(err).NotTo(HaveOccurred())
-
-			result, err = dbUser.Exec(`insert into previous_table(pk, value) values (1, 'value')`)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.RowsAffected()).To(BeNumerically("==", 1))
+			validateBindingUser(dbUser)
 		}
 
 		return nil
 	}
 }
 
-func checkUserIsDestroyed(username string) resource.TestCheckFunc {
+func validateBindingUser(dbUser *sql.DB) {
+	result, err := dbUser.Exec("insert into tasks(title, status, priority) values ('task', 2, 3), ('another task', 3, 4)")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(result.RowsAffected()).To(BeNumerically("==", 2))
+
+	By("Reading and modifying existing data as the binding user")
+	rows, err := dbUser.Query(`select * from previous_table`)
+	Expect(err).NotTo(HaveOccurred())
+
+	Expect(rows.Next()).To(BeTrue())
+	var (
+		id    int
+		value string
+	)
+	err = rows.Scan(&id, &value)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(id).To(BeNumerically("==", 1))
+	Expect(value).To(Equal("value"))
+	Expect(rows.Next()).To(BeFalse())
+
+	result, err = dbUser.Exec(`insert into previous_table(pk, value) values (2, 'cheese')`)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(result.RowsAffected()).To(BeNumerically("==", 1))
+
+	result, err = dbUser.Exec(`update previous_table set value='new_value' where pk=1`)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(result.RowsAffected()).To(BeNumerically("==", 1))
+
+	result, err = dbUser.Exec(`delete from previous_table where pk in (1, 2)`)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(result.RowsAffected()).To(BeNumerically("==", 2))
+
+	_, err = dbUser.Exec("drop table previous_table")
+	Expect(err).NotTo(HaveOccurred())
+
+	By("Re-creating the pre-existing table")
+
+	_, err = dbUser.Exec("create table previous_table (pk int primary key not null auto_increment, value varchar(255) not null)")
+	Expect(err).NotTo(HaveOccurred())
+
+	result, err = dbUser.Exec(`insert into previous_table(pk, value) values (1, 'value')`)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(result.RowsAffected()).To(BeNumerically("==", 1))
+}
+
+func validateReadOnlyBindingUser(dbUser *sql.DB) {
+	By("By validating that a readonly user can query data")
+	rows, err := dbUser.Query(`select * from previous_table`)
+	Expect(err).NotTo(HaveOccurred())
+
+	Expect(rows.Next()).To(BeTrue())
+	var (
+		id    int
+		value string
+	)
+	err = rows.Scan(&id, &value)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(id).To(BeNumerically("==", 1))
+	Expect(value).To(Equal("value"))
+	Expect(rows.Next()).To(BeFalse())
+
+	By("By validating that a readonly user can't insert data")
+	_, err = dbUser.Exec(`insert into previous_table(pk, value) values (2, 'cheese')`)
+	Expect(err).To(HaveOccurred())
+}
+
+func checkUserIsDestroyed(username string, readOnly bool) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		var (
 			taskId   int
@@ -215,20 +244,22 @@ func checkUserIsDestroyed(username string) resource.TestCheckFunc {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rows.Next()).To(BeFalse())
 
-		By("Accessing the removed user's data")
-		rows, err = db.Query(fmt.Sprintf("select task_id, title, status, priority from `%s`.tasks order by task_id", database))
-		Expect(err).NotTo(HaveOccurred())
-		Expect(rows.Next()).To(BeTrue())
-		Expect(rows.Scan(&taskId, &title, &status, &priority)).NotTo(HaveOccurred())
+		if !readOnly {
+			By("Accessing the removed user's data")
+			rows, err = db.Query(fmt.Sprintf("select task_id, title, status, priority from `%s`.tasks order by task_id", database))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rows.Next()).To(BeTrue())
+			Expect(rows.Scan(&taskId, &title, &status, &priority)).NotTo(HaveOccurred())
 
-		Expect(taskId).To(BeNumerically("==", 1))
-		Expect(title).To(Equal("task"))
-		Expect(status).To(BeNumerically("==", 2))
-		Expect(priority).To(BeNumerically("==", 3))
+			Expect(taskId).To(BeNumerically("==", 1))
+			Expect(title).To(Equal("task"))
+			Expect(status).To(BeNumerically("==", 2))
+			Expect(priority).To(BeNumerically("==", 3))
 
-		Expect(rows.Next()).To(BeTrue())
-		Expect(rows.Scan(&taskId, &title, &status, &priority)).NotTo(HaveOccurred())
-		Expect(taskId).To(BeNumerically("==", 2))
+			Expect(rows.Next()).To(BeTrue())
+			Expect(rows.Scan(&taskId, &title, &status, &priority)).NotTo(HaveOccurred())
+			Expect(taskId).To(BeNumerically("==", 2))
+		}
 
 		return nil
 	}
