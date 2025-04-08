@@ -138,6 +138,7 @@ type definition struct {
 	Port                     int
 	SkipVerify               bool
 	AllowInsecureConnections bool
+	ReadOnly                 bool
 }
 
 type setDefinitionFunc func(*definition)
@@ -193,6 +194,12 @@ func resourceDefinitionWithPassword(password string) setDefinitionFunc {
 func resourceDefinitionWithInsecureConnections(allowed bool) setDefinitionFunc {
 	return func(config *definition) {
 		config.AllowInsecureConnections = allowed
+	}
+}
+
+func resourceDefinitionWithReadOnly(readOnly bool) setDefinitionFunc {
+	return func(config *definition) {
+		config.ReadOnly = readOnly
 	}
 }
 

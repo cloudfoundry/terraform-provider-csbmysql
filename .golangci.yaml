@@ -1,21 +1,34 @@
+version: "2"
 linters:
   enable:
-  - errcheck
-  - goimports
-  - gosimple
-  - govet
-  - ineffassign
-  - importas
-  - revive
-  - staticcheck
-  - typecheck
-  - unconvert
-  - unparam
-  - unused
-  - predeclared
-linters-settings:
-  revive:
-    rules:
-    - name: import-shadowing
-      severity: warning
-      disabled: false
+    - importas
+    - predeclared
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    revive:
+      rules:
+        - name: import-shadowing
+          severity: warning
+          disabled: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
