@@ -220,7 +220,7 @@ func validateReadOnlyBindingUser(dbUser *sql.DB) {
 
 	By("By validating that a readonly user can't insert data")
 	_, err = dbUser.Exec(`insert into previous_table(pk, value) values (2, 'cheese')`)
-	Expect(err).To(HaveOccurred())
+	Expect(err).To(MatchError(ContainSubstring("INSERT command denied to user")))
 }
 
 func checkUserIsDestroyed(username string, readOnly bool) resource.TestCheckFunc {
