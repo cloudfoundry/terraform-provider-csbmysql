@@ -112,7 +112,7 @@ func executeSql(db *sql.DB, statement string) {
 	Expect(err).NotTo(HaveOccurred())
 }
 
-func parse(m interface{}, resourceTmpl string) (string, error) {
+func parse(m any, resourceTmpl string) (string, error) {
 	var definitionBytes bytes.Buffer
 
 	t := template.Must(template.New("resource").Parse(resourceTmpl))
