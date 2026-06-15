@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.40.1
-	github.com/onsi/ginkgo/v2 v2.30.0
+	github.com/onsi/ginkgo/v2 v2.31.0
 	github.com/onsi/gomega v1.42.0
 )
 
